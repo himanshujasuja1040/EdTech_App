@@ -1,46 +1,37 @@
-import React, { createContext, useState, useEffect } from 'react';
-import { Text } from 'react-native';
-import { doc, getDoc, collection, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 
 export const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
-  // State variables with default values to avoid null during initial render
+  // State variables
   const [userData, setUserData] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedStandard, setSelectedStandard] = useState("12th Class");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [notifications, setNotifications] = useState([]);
+  const [userPhoneNumber,setUserPhoneNumber]=useState();
+  const [userParentPhoneNumber,setUserParentPhoneNumber]=useState();
+
   const [name, setName] = useState("Guest");
   const [error, setError] = useState(null);
 
-  // Fetch user data once on component mount
+  // When userData changes, update selectedStandard and name accordingly.
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (user) {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            setUserData(data);
-            setIsLoggedIn(true);
-            setSelectedStandard(data.selectedStandard || "12th Class");
-            setName(data.fullName || "Guest");
-          } else {
-            setIsLoggedIn(false);
-          }
-        } else {
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
+    if (userData) {
+      setSelectedStandard(userData.selectedStandard || "12th Class");
+      setName(userData.fullName || "Guest");
+    }
+  }, [userData]);
 
-    fetchUserData();
-  },[]);
+  // Update selectedCategory when selectedStandard changes (and if userData exists)
+  useEffect(() => {
+    if (userData) {
+      setSelectedStandard(selectedStandard);
+    }
+  }, [selectedStandard, userData]);
+
+  console.log('AuthContext userData: ', userData);
 
   // Subscribe to notifications for the selected standard.
   useEffect(() => {
@@ -60,7 +51,6 @@ const AuthProvider = ({ children }) => {
         );
         setNotifications(filteredNotifications);
         setError(null);
-
       },
       (err) => {
         console.error('Error fetching notifications:', err);
@@ -71,24 +61,41 @@ const AuthProvider = ({ children }) => {
   }, [selectedStandard]);
 
 
+  //Progress
+  function randomiseProgress() {
+    // Generate a random number between 0.6 and 1.
+    const overallProgress = Math.random() * (1 - 0.6) + 0.6;
+    // Round to two decimal places.
+    const overallProgress1 = Math.round(overallProgress * 100) / 100;
+    return overallProgress1;
+  }
+    // console.log(randomiseProgress())
+  const overallProgress=randomiseProgress()
+  // Prepare the context value with the correct dependencies.
+  const contextValue = useMemo(() => ({
+    selectedStandard,
+    setSelectedStandard,
+    selectedCategory,
+    setSelectedCategory,
+    name,
+    setName,
+    notifications,
+    setNotifications,
+    userData,
+    setUserData,
+    error,
+    overallProgress,
+    userPhoneNumber,
+    setUserPhoneNumber,
+    userParentPhoneNumber,
+    setUserParentPhoneNumber
+  }), [selectedStandard, selectedCategory, name, notifications, userData, error]);
+
+  // Create a key based on userData.
+  const providerKey = userData ? (userData.id || JSON.stringify(userData)) : 'default';
 
   return (
-    <AuthContext.Provider
-      value={{
-        isLoggedIn,
-        setIsLoggedIn,
-        selectedStandard,
-        setSelectedStandard,
-        selectedCategory,
-        setSelectedCategory,
-        name,
-        setName,
-        notifications,
-        setNotifications,
-        userData,
-        setUserData
-      }}
-    >
+    <AuthContext.Provider key={providerKey} value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

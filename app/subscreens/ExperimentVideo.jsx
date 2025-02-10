@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Dimensions } from 'react-native';
-import { db } from '../../configs/firebaseConfig'; // Your Firestore instance
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  Dimensions,
+  TextInput,
+  RefreshControl,
+} from 'react-native';
+import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
-import YoutubePlayer from "react-native-youtube-iframe";
+import YoutubePlayer from 'react-native-youtube-iframe';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -12,7 +21,13 @@ const ExperimentVideo = () => {
   const { selectedStandard } = useContext(AuthContext);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+
+  // Search states for filtering by Title and Subject.
+  const [searchTitle, setSearchTitle] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
+
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -22,133 +37,214 @@ const ExperimentVideo = () => {
   }, [navigation]);
 
   const getYoutubeId = useCallback((url) => {
-    return url?.match(/(?:v=|\/v\/|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]+)/)?.[1] || null;
+    return (
+      url?.match(
+        /(?:v=|\/v\/|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]+)/
+      )?.[1] || null
+    );
   }, []);
+
+
+  const fetchVideos = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const videosCollectionRef = collection(db, 'ExperimentVideos');
+      const querySnapshot = await getDocs(videosCollectionRef);
+      const fetchedVideos = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setVideos(fetchedVideos);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching videos:', err);
+      setError('Failed to load videos. Please try again later.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+
+    }
+  }, []);
+
+
 
   useEffect(() => {
-    const fetchVideos = async () => {
-      try {
-        const videosCollectionRef = collection(db, 'ExperimentVideos');
-        const querySnapshot = await getDocs(videosCollectionRef);
-        const fetchedVideos = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setVideos(fetchedVideos);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching videos:', err);
-        setError('Failed to load videos. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchVideos();
-  }, []);
+  }, [fetchVideos]);
 
-  const renderVideoItem = useCallback(({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.classBadge}>🔬 {item.class}</Text>
-        <Text style={styles.subjectTag}>{item.subject}</Text>
-      </View>
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchVideos();
+  }, [fetchVideos]);
 
-      <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+  // Filter videos based on selectedStandard, Title, and Subject.
+const filteredVideos = useMemo(() => {
 
-      {item.youtubelink ? (
-        <YoutubePlayer
-          height={SCREEN_WIDTH * 0.85 * (9 / 16)} // Maintain a 16:9 aspect ratio
-          width={SCREEN_WIDTH * 0.85}
-          videoId={getYoutubeId(item.youtubelink)}
-          webViewProps={{ accessible: false }}
-          webViewStyle={styles.videoPlayer}
-        />
-      ) : (
-        <Text style={styles.noVideoText}>No video available.</Text>
-      )}
-    </View>
-  ), [getYoutubeId]);
+  return videos.filter((video) => {
+    const matchesStandard = video.class.toLowerCase() === selectedStandard.toLowerCase();
+    const matchesTitle = video.title.toLowerCase().includes(searchTitle.toLowerCase());
+    const matchesSubject = video.subject.toLowerCase().includes(searchSubject.toLowerCase());
+    return matchesStandard && matchesTitle && matchesSubject;
+  });
+}, [videos, selectedStandard, searchTitle, searchSubject]);
 
-  if (loading) {
+const RenderVideoItem = useCallback(
+  ({ item }) => {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading Experiments...</Text>
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.classBadge}>{item.class}</Text>
+          <Text style={styles.subjectTag}>{item.subject}</Text>
+        </View>
+
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        {item.youtubelink ? (
+          <YoutubePlayer
+            height={SCREEN_WIDTH * 0.85 * (9 / 16)}
+            width={SCREEN_WIDTH * 0.85}
+            videoId={getYoutubeId(item.youtubelink)}
+            webViewProps={{ accessible: false }}
+            webViewStyle={styles.videoPlayer}
+          />
+        ) : (
+          <Text style={styles.noVideoText}>No video available.</Text>
+        )}
       </View>
     );
-  }
+  },
+  [getYoutubeId] // Removed 'item' from here
+);
 
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
+const keyExtractor = useCallback(item => item.id, []);
 
-  const filteredVideos = videos.filter(video =>
-    video.class.toLowerCase() === selectedStandard.toLowerCase()
-  );
-
+if (loading) {
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Science Experiments</Text>
-        <Text style={styles.subHeader}>{selectedStandard} Demonstration Videos</Text>
-      </View>
-
-      <FlatList
-        data={filteredVideos}
-        keyExtractor={item => item.id}
-        renderItem={renderVideoItem}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📹</Text>
-            <Text style={styles.emptyText}>
-              No experiments available for {selectedStandard}
-            </Text>
-          </View>
-        }
-        showsVerticalScrollIndicator={false}
-      />
+    <View style={styles.centerContainer}>
+      <ActivityIndicator size="large" color="#4CAF50" />
+      <Text style={styles.loadingText}>Loading Experiments...</Text>
     </View>
   );
+}
+
+if (error) {
+  return (
+    <View style={styles.centerContainer}>
+      <Text style={styles.errorIcon}>⚠️</Text>
+      <Text style={styles.errorText}>{error}</Text>
+    </View>
+  );
+}
+
+return (
+      <View style={styles.container}>
+
+  <FlatList
+    data={filteredVideos}
+    keyExtractor={keyExtractor}
+    renderItem={RenderVideoItem}
+    ListHeaderComponent={() => (
+      <View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>{selectedStandard} Demonstration Videos</Text>
+      </View>
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholderTextColor="#888"
+            placeholder="Search by Title"
+            value={searchTitle}
+            onChangeText={setSearchTitle}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholderTextColor="#888"
+            placeholder="Search by Subject"
+            value={searchSubject}
+            onChangeText={setSearchSubject}
+          />
+        </View>
+      </View>
+    )}
+    ListEmptyComponent={
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>📹</Text>
+        <Text style={styles.emptyText}>
+          No experiments available for {selectedStandard}
+        </Text>
+      </View>
+    }
+    contentContainerStyle={styles.listContent}
+    showsVerticalScrollIndicator={false}
+    refreshControl={
+      <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+    }
+    initialNumToRender={5}
+    windowSize={10}
+    maxToRenderPerBatch={5}
+    removeClippedSubviews={true}
+  />
+  </View>
+);
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingTop: 16,
+    backgroundColor: '#f0f4f8',
+    paddingTop: 10,
+
+    paddingBottom:40,
   },
   headerContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingHorizontal: 5,
   },
   header: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#2D3436',
-    marginBottom: 4,
+    fontSize: 22, // Increased font size for better visibility
+    fontWeight: 'bold', // Changed to bold for emphasis
+    color: '#2c3e50', // Darker color for better readability
+    textAlign: 'center',
+    marginVertical: 12, // Increased margin for better spacing
+    letterSpacing: 1,
   },
   subHeader: {
     fontSize: 16,
     color: '#636E72',
+    marginBottom: 12,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#bdc3c7', // Changed to a softer gray color
+    borderRadius: 8, // More rounded corners
+    padding: 12, // Increased padding for better touch area
+    fontSize: 16,
+    marginBottom: 12, // Increased spacing between inputs
+    backgroundColor: '#ffffff', // Keeping input background white
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4, // Adding shadow for depth
+    elevation: 2,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+
+    backgroundColor: '#ffffff',
+    borderRadius: 15, // More pronounced rounded corners
+    marginHorizontal: 10,
+    marginBottom: 20, // Increased spacing for better separation
+    padding: 16, // Increased padding for a spacious feel
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 5,
+
   },
   cardHeader: {
     flexDirection: 'row',

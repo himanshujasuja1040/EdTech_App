@@ -1,5 +1,5 @@
 import { router, useNavigation } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -15,14 +15,13 @@ import { ProgressChart } from 'react-native-chart-kit';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 import Entypo from '@expo/vector-icons/Entypo';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import ClassesModule from '../components/ClassesModule';
-import Notification from "../components/Notification"
+import { AuthContext } from '../AuthContext/AuthContext';
 const MyZone = () => {
   const navigation = useNavigation();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const {overallProgress}=useContext(AuthContext)
   // Hide header on this screen
   useEffect(() => {
     navigation.setOptions({ 
@@ -51,12 +50,13 @@ const MyZone = () => {
     fetchUserData();
   }, []);
 
-  // Mock data - replace with real data from your backend as needed
+
+
   const studentData = {
     name: "Rahul Sharma",
     class: "10th Grade",
     attendance: "92%",
-    overallProgress: 0.75, // 75% progress
+    overallProgress: overallProgress, // 75% progress
     upcomingClasses: [
       { id: 1, subject: "Mathematics", time: "Mon 4:00 PM", topic: "Algebra" },
       { id: 2, subject: "Physics", time: "Wed 10:00 AM", topic: "Optics" }
@@ -155,7 +155,7 @@ const MyZone = () => {
         <Text style={styles.sectionTitle}>Daily Study Tip</Text>
         <View style={styles.tipCard}>
           <Text style={styles.tipText}>
-            "Review your notes daily to reinforce learning and build long-term memory."
+            Radhe Radhe Baccho , Parents ko Proud feel krana hai , isse badiya koi tip hai hi nahi
           </Text>
         </View>
       </View>
@@ -170,12 +170,15 @@ const MyZone = () => {
       <View style={styles.iconRow}>
         <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Profile")}>
           <Ionicons name="settings" size={24} color={Colors.PRIMARY} />
+          <Text style={styles.iconText}>Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Attendance")}>
           <Entypo name="new-message" size={24} color={Colors.PRIMARY} />
+          <Text style={styles.iconText}>Attendence</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Schedule")}>
           <Ionicons name="time" size={24} color={Colors.PRIMARY} />
+          <Text style={styles.iconText}>Schedule</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -405,20 +408,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginBottom: 40,
+    marginVertical: 20,
+    // paddingHorizontal: 10,
   },
   iconCard: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#fff',
+    padding: 10,
+    marginHorizontal: 3,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+
+    // Shadow for iOS
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+
+    // Elevation for Android
+    elevation: 1,
+  },
+  iconText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
   },
 });
 

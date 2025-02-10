@@ -8,21 +8,31 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions
+  Dimensions,
+  TextInput,
+  RefreshControl
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const Books = () => {
   const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true); // Set true to show loading until data is fetched
+  const [loading, setLoading] = useState(true); // Show loading indicator until data is fetched
   const [error, setError] = useState(null);
   const { selectedStandard } = useContext(AuthContext);
+    const [refreshing, setRefreshing] = useState(false);
+  
   const navigation = useNavigation();
+
+  // Search states for filtering books by title, detail, and subject
+  const [searchTitle, setSearchTitle] = useState('');
+  const [searchDetail, setSearchDetail] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
 
   useEffect(() => {
     navigation.setOptions({
@@ -30,10 +40,10 @@ const Books = () => {
     });
   }, [navigation]);
 
-  // Fetch books from the "Books" collection using the modular Firebase SDK
-  useEffect(() => {
-    const fetchBooks = async () => {
+  // Fetch books from the "Books" collection
+    const fetchBooks = useCallback(async () => {
       try {
+        setLoading(true)
         const booksCollectionRef = collection(db, 'Books');
         const querySnapshot = await getDocs(booksCollectionRef);
         const fetchedBooks = querySnapshot.docs.map(doc => ({
@@ -48,66 +58,97 @@ const Books = () => {
         setError('Failed to load books. Please try again later.');
       } finally {
         setLoading(false);
+        setRefreshing(false)
       }
-    };
+    },[]);
+    
+  
+    useEffect(() => {
+      fetchBooks();
+    }, [fetchBooks]);
 
-    fetchBooks();
-  }, []);
+   const handleRefresh = useCallback(() => {
+      setRefreshing(true);
+      fetchBooks();
+    }, [fetchBooks]);
 
-  // Filter books based on the selected standard
-  const filteredBooks = useMemo(() =>
-    books.filter(book => book.class.toLowerCase() === selectedStandard.toLowerCase()),
-    [books, selectedStandard]
+  // Filter books based on selected standard and search queries
+  const filteredBooks = useMemo(
+    () =>
+      books.filter(book => {
+        const matchesStandard =
+          book.class.toLowerCase() === selectedStandard.toLowerCase();
+        const matchesTitle = book.title
+          .toLowerCase()
+          .includes(searchTitle.toLowerCase());
+        const matchesDetail = book.detail
+          .toLowerCase()
+          .includes(searchDetail.toLowerCase());
+        const matchesSubject = book.subject
+          .toLowerCase()
+          .includes(searchSubject.toLowerCase());
+        return matchesStandard && matchesTitle && matchesDetail && matchesSubject;
+      }),
+    [books, selectedStandard, searchTitle, searchDetail, searchSubject]
   );
 
+  // Open the book link in a webview or external browser
   const handleOpenBook = useCallback((url) => {
     if (!url) {
       Alert.alert('Invalid Link', 'This book is not currently available');
       return;
     }
-    // navigation.navigate('WebViewScreen', { url });
-  }, [navigation]);
+    router.push({
+      pathname: '/helper/WebViewScreen',
+      params: { url },
+    });
+    // Alternatively, you can use navigation.navigate('WebViewScreen', { url });
+  }, []);
 
-  const BookItem = useCallback(({ item }) => (
-    <TouchableOpacity 
-      style={styles.bookCard}
-      activeOpacity={0.9}
-      onPress={() => item.drivelink && handleOpenBook(item.drivelink)}
-    >
-      <View style={styles.imageContainer}>
-        {item.image ? (
-          <Image 
-            source={{ uri: item.image }} 
-            style={styles.image}
-            resizeMode="contain"
-          />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Text style={styles.placeholderText}>📚 No Preview Available</Text>
+  // Render each book item in a card-like horizontal layout
+  const BookItem = useCallback(
+    ({ item }) => (
+      <View style={styles.card}>
+        <View style={styles.cardRow}>
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.courseImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Image
+              source={require('../../assets/images/placeholder.jpeg')}
+              style={styles.courseImage}
+              resizeMode="cover"
+            />
+          )}
+          <View style={styles.cardContent}>
+            <View style={styles.badgesContainer}>
+              <Text style={styles.classBadge}>🏫 Class {item.class}</Text>
+            </View>
+            <Text style={styles.title} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <Text style={styles.detailText} numberOfLines={1}>
+              {item.subject}
+            </Text>
+            <Text style={styles.detailText} numberOfLines={3}>
+              {item.detail}
+            </Text>
+              <TouchableOpacity
+                style={styles.openButton}
+                onPress={() => handleOpenBook(item.drivelink)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.openButtonText}>📖 Open Book</Text>
+              </TouchableOpacity>
           </View>
-        )}
-      </View>
-
-      <View style={styles.textContainer}>
-        <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.metaContainer}>
-          <Text style={styles.classTag}>Class {item.class}</Text>
-          <Text style={styles.subject} numberOfLines={1}>{item.subject}</Text>
         </View>
-        <Text style={styles.detailText} numberOfLines={3}>{item.detail}</Text>
       </View>
-
-      {item.drivelink && (
-        <TouchableOpacity 
-          onPress={() => handleOpenBook(item.drivelink)}
-          style={styles.linkContainer}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.linkText}>📖 Open Book</Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  ), [handleOpenBook]);
+    ),
+    [handleOpenBook]
+  );
 
   const keyExtractor = useCallback(item => item.id, []);
 
@@ -131,15 +172,43 @@ const Books = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Available Books</Text>
-        <Text style={styles.subHeader}>{selectedStandard} Study Materials</Text>
-      </View>
-
       <FlatList
         data={filteredBooks}
         keyExtractor={keyExtractor}
         renderItem={({ item }) => <BookItem item={item} />}
+        ListHeaderComponent={
+          <View>
+            {/* Header */}
+            <View style={styles.headerContainer}>
+              <Text style={styles.header}>Exclusive Books : {selectedStandard}</Text>
+            </View>
+
+            {/* Search Bars */}
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Title"
+                placeholderTextColor="#888"
+                value={searchTitle}
+                onChangeText={setSearchTitle}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Detail"
+                placeholderTextColor="#888"
+                value={searchDetail}
+                onChangeText={setSearchDetail}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Subject"
+                placeholderTextColor="#888"
+                value={searchSubject}
+                onChangeText={setSearchSubject}
+              />
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📭</Text>
@@ -153,6 +222,10 @@ const Books = () => {
         initialNumToRender={3}
         maxToRenderPerBatch={5}
         windowSize={5}
+        refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        removeClippedSubviews={true}
       />
     </View>
   );
@@ -161,103 +234,112 @@ const Books = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingTop: 16,
+    backgroundColor: '#f0f4f8',
+    paddingTop: 10,
+    paddingBottom:40,
   },
   headerContainer: {
-    paddingHorizontal: 20,
+    marginHorizontal: 20,
     marginBottom: 16,
   },
   header: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#2D3436',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
   },
   subHeader: {
     fontSize: 16,
-    color: '#636E72',
+    color: '#777',
+    textAlign: 'center',
+    marginTop: 4,
   },
-  bookCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginHorizontal: 16,
+  searchContainer: {
+    marginHorizontal: 20,
     marginBottom: 16,
-    padding: 16,
+  },
+  searchInput: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 0.25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    overflow: 'hidden',
   },
-  imageContainer: {
-    marginBottom: 12,
+  cardRow: {
+    flexDirection: 'row',
   },
-  image: {
-    width: '100%',
-    height: SCREEN_WIDTH * 0.6,
-    borderRadius: 8,
+  courseImage: {
+    width: 120,
+    height: 120,
+    marginTop: 15,
+    marginLeft: 10,
+    borderRadius: 16,
   },
-  placeholderImage: {
-    width: '100%',
-    height: SCREEN_WIDTH * 0.6,
-    backgroundColor: '#F0F4F8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
+  cardContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
   },
-  placeholderText: {
-    color: '#90A4AE',
-    fontSize: 14,
-    fontWeight: '500',
+  badgesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  textContainer: {
-    marginBottom: 8,
+  classBadge: {
+    backgroundColor: '#e0f7fa',
+    color: '#00796b',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    fontSize: 12,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#2D3436',
-    marginBottom: 8,
-    lineHeight: 24,
-  },
-  metaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  classTag: {
-    backgroundColor: '#4CAF5020',
-    color: '#2D3436',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginRight: 8,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  subject: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-    flex: 1,
+    color: '#333',
+    marginVertical: 4,
+    flexShrink: 1,
   },
   detailText: {
     fontSize: 14,
     color: '#636E72',
     lineHeight: 20,
   },
-  linkContainer: {
-    backgroundColor: '#4CAF5020',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
+  openButton: {
     marginTop: 8,
+    backgroundColor: '#4caf50',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  linkText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-    fontSize: 16,
+  openButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   centerContainer: {
     flex: 1,
@@ -294,9 +376,6 @@ const styles = StyleSheet.create({
     color: '#636E72',
     textAlign: 'center',
     fontSize: 16,
-  },
-  listContent: {
-    paddingBottom: 24,
   },
 });
 

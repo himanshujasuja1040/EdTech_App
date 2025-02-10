@@ -22,7 +22,7 @@ import { auth, db } from '../../configs/firebaseConfig';
 import ClassesModule from './ClassesModule';
 
 const CustomDrawerContent = (props) => {
-  const { selectedStandard ,notifications,userData} = useContext(AuthContext);
+  const { selectedStandard ,notifications,userData,userParentPhoneNumber,userPhoneNumber} = useContext(AuthContext);
 
 
   // Quick logout function
@@ -52,22 +52,23 @@ const CustomDrawerContent = (props) => {
   return (
     <View style={styles.container}>
       <DrawerContentScrollView {...props}>
+        <View style={styles.quickActions}>
+          <Text style={{ color: '#fff', fontFamily:'outfit' }}>RADHE RADHE </Text>
+        </View>
         {/* Profile Section */}
         <View style={styles.profileContainer}>
           <Text style={styles.userName}>
             {userData ? userData.fullName : 'John'}
           </Text>
           <Text style={styles.userEmail}>
-            {userData ? userData.email : 'john@example.com'}
+            Email : {userData ? userData.email : 'john@example.com'}
           </Text>
           <View style={styles.profileStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>12</Text>
-              <Text style={styles.statLabel}>Classes</Text>
+              <Text style={styles.statValue}>Your Contact : {userPhoneNumber}</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>95%</Text>
-              <Text style={styles.statLabel}>Attendance</Text>
+              <Text style={styles.statValue}>Parent's Contact : {userParentPhoneNumber}</Text>
             </View>
           </View>
         </View>
@@ -135,6 +136,8 @@ const CustomDrawerContent = (props) => {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
         <Text style={styles.versionText}>Abhisekh Bhaiya Classes</Text>
+        <Text style={styles.versionText}>Contact : 9268012970</Text>
+
       </View>
     </View>
   );
@@ -146,19 +149,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.WHITE,
   },
   profileContainer: {
-    padding: 20,
+    padding: 15,
     backgroundColor: Colors.WHITE,
+    marginTop:15,
     marginBottom: 15,
     borderWidth: 1,
     borderRadius: 15,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: '#fff',
   },
   userName: {
     fontSize: 20,
@@ -169,22 +165,20 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: Colors.PRIMARY,
-    marginBottom: 15,
+    marginBottom: 2,
+
   },
   profileStats: {
-    flexDirection: 'row',
+    flexDirection: 'col',
     justifyContent: 'space-around',
   },
-  statItem: {
-    alignItems: 'center',
-  },
   statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 14,
+    marginBottom: 2,
     color: Colors.PRIMARY,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.PRIMARY,
   },
   quickActions: {
@@ -237,6 +231,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   versionText: {
+    fontFamily:'outfit',
     textAlign: 'center',
     color: '#666',
     fontSize: 12,

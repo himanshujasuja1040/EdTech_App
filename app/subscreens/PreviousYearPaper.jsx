@@ -7,12 +7,15 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   Dimensions, 
-  Alert 
+  Alert,
+  TextInput,
+  RefreshControl
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -21,6 +24,13 @@ const PreviousYearPaper = () => {
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Separate states for each search criteria.
+  const [yearQuery, setYearQuery] = useState('');
+  const [subjectQuery, setSubjectQuery] = useState('');
+  const [titleQuery, setTitleQuery] = useState('');
+
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -32,6 +42,7 @@ const PreviousYearPaper = () => {
   // Fetch papers from Firestore using the modular SDK.
   const fetchPapers = useCallback(async () => {
     try {
+      setLoading(true)
       const papersCollectionRef = collection(db, 'PreviousYearPapers');
       const querySnapshot = await getDocs(papersCollectionRef);
       const fetchedPapers = querySnapshot.docs.map(doc => ({
@@ -45,47 +56,106 @@ const PreviousYearPaper = () => {
       setError('Failed to load papers. Pull down to refresh.');
     } finally {
       setLoading(false);
+      setRefreshing(false)
+
     }
   }, []);
 
   useEffect(() => {
     fetchPapers();
   }, [fetchPapers]);
+
+     const handleRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchPapers();
+      }, [fetchPapers]);
+
   // Handle opening a paper link.
   const handleOpenPaper = useCallback((url) => {
     if (!url) {
       Alert.alert('Invalid Paper', 'This paper is not currently available');
       return;
     }
-    navigation.navigate('WebViewScreen', { url });
-  }, [navigation]);
+    router.push({
+      pathname: '/helper/WebViewScreen',
+      params: { url },
+    });
+  }, []);
 
   // Render each paper item.
   const renderPaperItem = useCallback(({ item }) => (
-    <TouchableOpacity 
+    <View 
       style={styles.card}
       activeOpacity={0.9}
-      onPress={() => item.drivelink && handleOpenPaper(item.drivelink)}
+      
     >
       <View style={styles.cardHeader}>
         <Text style={styles.yearBadge}>📅 {item.year}</Text>
         <Text style={styles.classTag}>Class {item.class}</Text>
       </View>
-      <Text style={styles.subject}>{item.subject}</Text>
+      <Text style={styles.subject}>Subject : {item.subject}</Text>
+      <Text style={styles.subject}> {item.title}</Text>
       
       {item.drivelink ? (
-        <View style={styles.linkContainer}>
+        <TouchableOpacity style={styles.linkContainer} onPress={() => item.drivelink && handleOpenPaper(item.drivelink)}>
           <Text style={styles.linkText}>View Paper →</Text>
-        </View>
+        </TouchableOpacity>
       ) : (
         <Text style={styles.disabledLink}>🚫 Currently Unavailable</Text>
       )}
-    </TouchableOpacity>
+    </View>
   ), [handleOpenPaper]);
 
-  // Filter papers by comparing the lowercase versions of the document's class and the selected standard.
-  const filteredPapers = papers.filter(
-    paper => paper.class.toLowerCase() === selectedStandard.toLowerCase()
+  // Filter papers by selected standard and all search queries.
+  const filteredPapers = papers.filter(paper => {
+    const matchesStandard = paper.class.toLowerCase() === selectedStandard.toLowerCase();
+
+    const matchesYear =
+      yearQuery.trim() === '' ||
+      paper.year.toString().toLowerCase().includes(yearQuery.toLowerCase());
+
+    const matchesSubject =
+      subjectQuery.trim() === '' ||
+      paper.subject.toLowerCase().includes(subjectQuery.toLowerCase());
+
+    // For title, if the paper does not have a title field, we consider it a match only if titleQuery is empty.
+    const matchesTitle =
+      titleQuery.trim() === '' ||
+      (paper.title && paper.title.toLowerCase().includes(titleQuery.toLowerCase()));
+
+    return matchesStandard && matchesYear && matchesSubject && matchesTitle;
+  });
+
+  // Render the header for the FlatList (including header text and search bars)
+  const renderHeader = () => (
+    <View style={styles.headerWrapper}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>{selectedStandard} Question Papers</Text>
+      </View>
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by year"
+          placeholderTextColor="#888"
+          value={yearQuery}
+          onChangeText={setYearQuery}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by subject"
+          placeholderTextColor="#888"
+          value={subjectQuery}
+          onChangeText={setSubjectQuery}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title"
+          placeholderTextColor="#888"
+          value={titleQuery}
+          onChangeText={setTitleQuery}
+        />
+      </View>
+    </View>
   );
 
   if (loading) {
@@ -111,26 +181,57 @@ const PreviousYearPaper = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Previous Year Papers</Text>
-        <Text style={styles.subHeader}>{selectedStandard} Question Papers</Text>
-      </View>
       <FlatList
         data={filteredPapers}
         keyExtractor={item => item.id}
         renderItem={renderPaperItem}
+        ListHeaderComponent={<View>
+              <View style={styles.headerWrapper}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>{selectedStandard} Question Papers</Text>
+      </View>
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by year"
+          placeholderTextColor="#888"
+          value={yearQuery}
+          onChangeText={setYearQuery}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by subject"
+          placeholderTextColor="#888"
+          value={subjectQuery}
+          onChangeText={setSubjectQuery}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title"
+          placeholderTextColor="#888"
+          value={titleQuery}
+          onChangeText={setTitleQuery}
+        />
+      </View>
+    </View>
+        </View>}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📭</Text>
             <Text style={styles.emptyText}>
-              No papers available for {selectedStandard}
+              No papers available for {selectedStandard} matching your search.
             </Text>
           </View>
         }
         showsVerticalScrollIndicator={false}
-        initialNumToRender={5}
+        initialNumToRender={3}
+        maxToRenderPerBatch={5}
         windowSize={5}
+        refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        removeClippedSubviews={true}
       />
     </View>
   );
@@ -139,8 +240,14 @@ const PreviousYearPaper = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#f0f4f8',
+    paddingTop: 10,
+    paddingBottom:40,
+  },
+  headerWrapper: {
     paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: '#F8F9FA',
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -156,17 +263,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#636E72',
   },
-  card: {
-    backgroundColor: '#FFFFFF',
+  searchContainer: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+  },
+  searchInput: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
     borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  card: {
+    padding: 16,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 0.25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    overflow: 'hidden',
+
   },
   cardHeader: {
     flexDirection: 'row',

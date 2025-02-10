@@ -39,7 +39,7 @@ const Doubts = () => {
     setTimeout(() => {
       const botMessage = {
         id: Date.now().toString() + 'bot',
-        text: 'This is a static response from the bot.',
+        text: 'Radhe Radhe Baccho , abhi karya pragati pr hai',
         sender: 'bot',
       };
       setMessages((prev) => [...prev, botMessage]);
@@ -86,9 +86,11 @@ const Doubts = () => {
       >
         <View style={styles.inputArea}>
           <TextInput
+          
             style={styles.textInput}
             placeholder="Type your doubt..."
-            placeholderTextColor="#999"
+            placeholderTextColor="#888"
+            
             value={inputText}
             onChangeText={setInputText}
           />

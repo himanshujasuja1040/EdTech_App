@@ -1,10 +1,21 @@
 import React, { useEffect, useState, useContext, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  TextInput,
+  RefreshControl,
+} from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
 import YoutubePlayer from "react-native-youtube-iframe";
+import WebView from 'react-native-webview';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -19,17 +30,23 @@ const getYoutubeId = (url) => {
 const FreeLecture = () => {
   const { selectedStandard } = useContext(AuthContext);
   const [lectures, setLectures] = useState([]);
-  const [loading, setLoading] = useState(true); // Start loading as true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
+
+  // New search state variables.
+  const [subjectQuery, setSubjectQuery] = useState('');
+  const [globalQuery, setGlobalQuery] = useState('');
 
   useEffect(() => {
     navigation.setOptions({ title: 'Lectures' });
   }, [navigation]);
 
-  // Fetch lectures from the "FreeLecture" collection using the modular Firestore SDK.
+  // Fetch lectures from the "FreeLecture" collection.
   const fetchLectures = useCallback(async () => {
     try {
+      setLoading(true);
       const lecturesCollectionRef = collection(db, 'FreeLecture');
       const querySnapshot = await getDocs(lecturesCollectionRef);
       const fetchedLectures = querySnapshot.docs.map(doc => ({
@@ -43,41 +60,82 @@ const FreeLecture = () => {
       setError('Failed to load lectures. Please check your connection.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     fetchLectures();
   }, [fetchLectures]);
+  
+    const handleRefresh = useCallback(() => {
+      setRefreshing(true);
+    fetchLectures();
+    }, [fetchLectures]);
 
-  // Filter lectures based on the selected standard.
+  // Filter lectures based on the selected standard and search queries.
   const filteredLectures = useMemo(() => {
     const lowerStd = selectedStandard.toLowerCase();
-    return lectures.filter((lecture) => lecture.class.toLowerCase() === lowerStd);
-  }, [lectures, selectedStandard]);
+    return lectures.filter((lecture) => {
+      if (!lecture.class || lecture.class.toLowerCase() !== lowerStd) {
+        return false;
+      }
+      if (
+        subjectQuery.trim() !== '' &&
+        lecture.subject &&
+        !lecture.subject.toLowerCase().includes(subjectQuery.toLowerCase())
+      ) {
+        return false;
+      }
+      if (globalQuery.trim() !== '') {
+        const queryLower = globalQuery.toLowerCase();
+        if (
+          !(lecture.title && lecture.title.toLowerCase().includes(queryLower)) &&
+          !(lecture.subject && lecture.subject.toLowerCase().includes(queryLower))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [lectures, selectedStandard, subjectQuery, globalQuery]);
 
-  // Lecture card component to display each lecture.
+  // Lecture card component with YouTube player at the bottom.
   const LectureCard = ({ item }) => {
     return (
       <View style={styles.lectureCard}>
+        {/* Header Section */}
         <View style={styles.cardHeader}>
           <Text style={styles.classBadge}>{item.class}</Text>
           <Text style={styles.duration}>🎥 Video Lecture</Text>
         </View>
-        <Text style={styles.topTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
-        {item.youtubelink ? (
-          <YoutubePlayer
-            height={SCREEN_WIDTH * 0.56} // Maintain a 16:9 aspect ratio
-            width={SCREEN_WIDTH * 0.85}
-            videoId={getYoutubeId(item.youtubelink)}
-            play={false}
-            webViewStyle={styles.videoPlayer}
-          />
-        ) : (
-          <Text style={styles.noVideoText}>No video available.</Text>
-        )}
+
+        {/* Lecture Details */}
+        <View style={styles.cardContent}>
+          <Text style={styles.topTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={styles.subjectText}>
+            Subject: {item.subject}
+          </Text>
+          
+          
+        </View>
+
+        {/* YouTube Player Section (at the bottom) */}
+        <View style={styles.videoContainer}>
+          {item.youtubelink ? (
+            <YoutubePlayer
+              height={SCREEN_WIDTH * 0.56} // Maintain a 16:9 aspect ratio
+              width={SCREEN_WIDTH * 0.85}
+              videoId={getYoutubeId(item.youtubelink)}
+              play={false}
+              webViewStyle={styles.videoPlayer}
+            />
+          ) : (
+            <Text style={styles.noVideoText}>No video available.</Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -108,12 +166,34 @@ const FreeLecture = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>📚 Free Lectures</Text>
       <FlatList
         data={filteredLectures}
         renderItem={renderLecture}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            {/* Header */}
+            <Text style={styles.header}>📚 Free Lectures</Text>
+            {/* Search Bars */}
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by subject..."
+                placeholderTextColor="#888"
+                value={subjectQuery}
+                onChangeText={setSubjectQuery}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search lectures..."
+                placeholderTextColor="#888"
+                value={globalQuery}
+                onChangeText={setGlobalQuery}
+              />
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.centeredContainer}>
             <Text style={styles.emptyIcon}>📭</Text>
@@ -122,6 +202,13 @@ const FreeLecture = () => {
             </Text>
           </View>
         }
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                }
+                initialNumToRender={5}
+                windowSize={10}
+                removeClippedSubviews={true}
       />
     </View>
   );
@@ -130,71 +217,104 @@ const FreeLecture = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    paddingTop: 5,
+    backgroundColor: '#f0f4f8', // Changed to a softer background color
+    paddingTop: 10,
+    paddingBottom:40,
   },
   header: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#2d3436',
+    fontSize: 28, // Increased font size for better visibility
+    fontWeight: 'bold', // Changed to bold for emphasis
+    color: '#2c3e50', // Darker color for better readability
     textAlign: 'center',
-    marginVertical: 8,
-    letterSpacing: 0.5,
+    marginVertical: 12, // Increased margin for better spacing
+    letterSpacing: 1, // Added letter spacing for a more modern look
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20, // Increased bottom margin for more space
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#bdc3c7', // Changed to a softer gray color
+    borderRadius: 8, // More rounded corners
+    padding: 12, // Increased padding for better touch area
+    fontSize: 16,
+    marginBottom: 12, // Increased spacing between inputs
+    backgroundColor: '#ffffff', // Keeping input background white
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4, // Adding shadow for depth
+    elevation: 2,
   },
   lectureCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 15, // More pronounced rounded corners
     marginHorizontal: 16,
-    marginBottom: 20,
-    padding: 16,
+    marginBottom: 25, // Increased spacing for better separation
+    padding: 20, // Increased padding for a spacious feel
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 5, // Increased elevation for a stronger shadow effect
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14, // Added margin for better space
   },
   classBadge: {
-    backgroundColor: '#1e90ff',
-    color: 'white',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    fontSize: 14,
-    fontWeight: '500',
+    backgroundColor: '#3498db', // Changed to a more vibrant blue
+    color: '#ffffff',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 25,
+    fontSize: 16,
+    fontWeight: '600', // Made font weight a bit stronger
   },
   duration: {
-    color: '#636e72',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#7f8c8d', // Changed to a softer gray
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cardContent: {
+    marginBottom: 18,
   },
   topTitle: {
-    fontSize: 16,
+    fontSize: 18, // Slightly larger font size for titles
     fontWeight: '500',
-    color: '#2d3436',
-    marginBottom: 8,
-    lineHeight: 22,
+    color: '#34495e', // Darker color for better contrast
+    marginBottom: 6,
+    lineHeight: 24, // Increased line height for readability
+  },
+  subjectText: {
+    fontSize: 15,
+    color: '#7f8c8d', // Softer gray color for subject text
+    marginBottom: 10,
+  },
+  videoContainer: {
+    alignItems: 'center',
+    marginTop: 10,
   },
   videoPlayer: {
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#bdc3c7', // Border to give a defined look
   },
   noVideoText: {
-    fontSize: 14,
-    color: '#636e72',
+    fontSize: 15,
+    color: '#e74c3c', // Changed to red for emphasis when no video is available
     textAlign: 'center',
-    marginVertical: 16,
+    marginVertical: 20,
   },
   centeredContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 30, // Increased padding to prevent content from being too close to edges
   },
   loadingText: {
     marginTop: 16,
@@ -204,17 +324,18 @@ const styles = StyleSheet.create({
   errorIcon: {
     fontSize: 48,
     marginBottom: 16,
+    color: '#e74c3c', // Red for error icon
   },
   errorText: {
     fontSize: 16,
-    color: '#d63031',
+    color: '#e74c3c',
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#1e90ff',
+    backgroundColor: '#3498db', // Consistent with the badge color
     paddingVertical: 12,
-    paddingHorizontal: 32,
+    paddingHorizontal: 35,
     borderRadius: 25,
   },
   retryText: {
@@ -225,6 +346,7 @@ const styles = StyleSheet.create({
   emptyIcon: {
     fontSize: 48,
     marginBottom: 16,
+    color: '#95a5a6', // Softer gray for empty state
   },
   emptyText: {
     fontSize: 16,
@@ -232,7 +354,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 30, // More padding at the bottom for scrollable content
   },
 });
 

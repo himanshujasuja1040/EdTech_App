@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Dimensions, 
-  Image 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  TextInput,
+  Share,
+  ScrollView
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
-
+import { Colors } from "../../constants/Colors"
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const PremiumCourse = () => {
@@ -21,6 +24,7 @@ const PremiumCourse = () => {
   const [premiumCourses, setPremiumCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -29,7 +33,7 @@ const PremiumCourse = () => {
     });
   }, [navigation]);
 
-  // Fetch premium courses from Firestore's "PremiumCourse" collection.
+  // Fetch courses from Firestore collection "PremiumCourse"
   useEffect(() => {
     const fetchPremiumCourses = async () => {
       try {
@@ -52,52 +56,67 @@ const PremiumCourse = () => {
     fetchPremiumCourses();
   }, [selectedStandard]);
 
-  // Filter courses based on the selected standard.
+  // Filter courses based on selected standard and search query.
   const filteredCourses = premiumCourses.filter(
-    course => course.class.toLowerCase() === selectedStandard.toLowerCase()
+    course =>
+      course.class.toLowerCase() === selectedStandard.toLowerCase() &&
+      course.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Render each course item.
+  // Render each course item with improved layout.
   const renderCourseItem = useCallback(({ item }) => {
-    // Convert price and discount from string to number.
     const price = parseFloat(item.price);
     const discount = parseFloat(item.discount);
     const discountedPrice = price - (price * discount / 100);
 
+    const handleShare = async () => {
+      try {
+        await Share.share({
+          message: `Check out this premium course:\n\n${item.title}\nClass: ${item.class}\nPrice: ₹${discount > 0 ? discountedPrice.toFixed(0) : price.toFixed(0)}`,
+        });
+      } catch (error) {
+        console.error('Error sharing course:', error);
+      }
+    };
+
     return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.9}
-        
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.classBadge}>🏫 Class {item.class}</Text>
-          <Text style={styles.courseTag}>⭐ Premium</Text>
-        </View>
-
-        <Text style={styles.title} numberOfLines={2}>
-          {item.title}
-        </Text>
-
-        {/* Display course image if available */}
-        {item.image && (
-          <Image
-            source={{ uri: item.image }}
-            style={styles.courseImage}
-            resizeMode="cover"
-          />
-        )}
-
-        <View style={styles.priceContainer}>
-          {discount > 0 ? (
-            <>
-              <Text style={styles.originalPrice}>₹{price.toFixed(0)}</Text>
-              <Text style={styles.discountedPrice}>₹{discountedPrice.toFixed(0)}</Text>
-              <Text style={styles.discountBadge}>{discount}% OFF</Text>
-            </>
+      <TouchableOpacity style={styles.card} activeOpacity={0.9}>
+        <View style={styles.cardRow}>
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.courseImage}
+              resizeMode="cover"
+            />
           ) : (
-            <Text style={styles.currentPrice}>₹{price.toFixed(0)}</Text>
+            <Image
+              source={require('../../assets/images/placeholder.jpeg')}
+              style={styles.courseImage}
+              resizeMode="cover"
+            />
           )}
+          <View style={styles.cardContent}>
+            <View style={styles.badgesContainer}>
+              <Text style={styles.classBadge}>🏫 Class {item.class}</Text>
+            </View>
+            <Text style={styles.title} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={styles.priceContainer}>
+              {discount > 0 ? (
+                <>
+                  <Text style={styles.originalPrice}>₹{price.toFixed(0)}</Text>
+                  <Text style={styles.discountedPrice}>₹{discountedPrice.toFixed(0)}</Text>
+                  <Text style={styles.discountBadge}>{discount}% OFF</Text>
+                </>
+              ) : (
+                <Text style={styles.currentPrice}>₹{price.toFixed(0)}</Text>
+              )}
+            </View>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Text style={styles.shareButtonText}>Share</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -121,131 +140,190 @@ const PremiumCourse = () => {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Premium Courses</Text>
-        <Text style={styles.subHeader}>
-          {selectedStandard} Exclusive Content
-        </Text>
-      </View>
+  
 
-      <FlatList
-        data={filteredCourses}
-        renderItem={renderCourseItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📚</Text>
-            <Text style={styles.emptyText}>
-              No premium courses available for {selectedStandard}
-            </Text>
-          </View>
-        }
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
+    return (
+      <View style={styles.container}>
+        <FlatList
+          data={filteredCourses}
+          renderItem={renderCourseItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <>
+              {/* Header */}
+              <View style={styles.headerContainer}>
+                <Text style={styles.header}>Exclusive Content : {selectedStandard}</Text>
+              </View>
+    
+              {/* Search Bar */}
+              <View style={styles.searchContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search Courses..."
+                  placeholderTextColor="#888"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
+            </>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📚</Text>
+              <Text style={styles.emptyText}>
+                No premium courses available for {selectedStandard}
+              </Text>
+            </View>
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
+    
+    
 };
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingTop: 16,
+    height:'100%',
+    backgroundColor: '#f0f4f8',
+    paddingBottom: 30,
+    paddingTop:10,
   },
   headerContainer: {
-    paddingHorizontal: 20,
+    marginHorizontal: 20,
     marginBottom: 16,
   },
-  header: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#2D3436',
-    marginBottom: 4,
+  header: { 
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
     textAlign: 'center',
   },
   subHeader: {
     fontSize: 16,
-    color: '#636E72',
+    color: '#777',
     textAlign: 'center',
+    marginTop: 4,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
+  searchContainer: {
+    marginHorizontal: 20,
     marginBottom: 16,
+  },
+  searchInput: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 0.25,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    overflow: 'hidden',
   },
-  cardHeader: {
+  cardRow: {
+    flexDirection: 'row',
+  },
+  courseImage: {
+    width: 120,
+    height: 120,
+    marginTop: 10,
+    marginLeft: 10,
+    borderRadius: 16,
+  },
+  cardContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  badgesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
   classBadge: {
-    backgroundColor: '#4CAF5020',
-    color: '#2D3436',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    fontSize: 14,
-    fontWeight: '500',
+    backgroundColor: '#e0f7fa',
+    color: '#00796b',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    fontSize: 12,
   },
   courseTag: {
-    color: '#4CAF50',
-    fontSize: 14,
+    color: '#ff9800',
+    fontSize: 12,
     fontWeight: '500',
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#2D3436',
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  courseImage: {
-    width: SCREEN_WIDTH - 64,
-    height: (SCREEN_WIDTH - 64) * 0.5,
-    borderRadius: 8,
-    marginBottom: 12,
+    color: '#333',
+    marginVertical: 4,
+    flexShrink: 1,
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginVertical: 4,
   },
   originalPrice: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#999',
     textDecorationLine: 'line-through',
     marginRight: 8,
   },
   discountedPrice: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D3436',
-    marginRight: 12,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e91e63',
+    marginRight: 8,
   },
   discountBadge: {
-    backgroundColor: '#FF408120',
-    color: '#D32F2F',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    fontSize: 14,
-    fontWeight: '500',
+    backgroundColor: '#ffebee',
+    color: '#e91e63',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    fontSize: 12,
   },
   currentPrice: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D3436',
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  shareButton: {
+    marginTop: 8,
+    backgroundColor: '#4caf50',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   centerContainer: {
     flex: 1,
@@ -255,7 +333,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    color: '#4CAF50',
+    color: '#4caf50',
     fontSize: 16,
   },
   errorIcon: {
@@ -263,7 +341,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorText: {
-    color: '#D32F2F',
+    color: '#e91e63',
     textAlign: 'center',
     fontSize: 16,
     paddingHorizontal: 20,
@@ -279,12 +357,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    color: '#636E72',
+    color: '#777',
     textAlign: 'center',
     fontSize: 16,
-  },
-  listContent: {
-    paddingBottom: 24,
   },
 });
 

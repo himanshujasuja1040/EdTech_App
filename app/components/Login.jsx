@@ -1,14 +1,19 @@
 import { Colors } from '@/constants/Colors';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
 const Login = () => {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
-  const imageHeight = height * 0.6; // Adjust image height dynamically
-  
+  const imageHeight = height * 0.6; 
+  const navigation=useNavigation()
+  useEffect(()=>{
+    navigation.setOptions({
+      headerShown: false,
+    })
+  })
   return (
     <View style={styles.container}>
       <Image 
@@ -18,8 +23,7 @@ const Login = () => {
       <View style={[styles.contentContainer, { paddingHorizontal: width * 0.05 }]}>
         <Text style={styles.title}>ABHISHEK BHAIYA CLASSES</Text>
         <Text style={styles.description}>
-          At Abhishek Bhaiya Classes, we provide top-quality education for CBSE, NEET, JEE Mains, 
-          and competitive exams.
+          Radhe Radhe Bacho ...... !!
         </Text>
         <TouchableOpacity style={styles.button} onPress={() => router.push('auth/sign-in')}>
           <Text style={styles.buttonText}>Get Started</Text>
@@ -40,7 +44,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     backgroundColor: Colors.WHITE,
-    marginTop: -30,
+    marginTop: -15,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 25,

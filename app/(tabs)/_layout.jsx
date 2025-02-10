@@ -1,17 +1,18 @@
-import React, { useContext } from 'react';
-import { View, TouchableOpacity, TextInput,Text } from 'react-native';
+import React, { useContext, useEffect } from 'react';
+import { View, TouchableOpacity, TextInput, Text } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { router, Tabs } from 'expo-router';
+import { router, Tabs, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Ionicons from '@expo/vector-icons/Ionicons'; // Added missing import
 import CustomDrawerContent from '../components/CustomDrawerContent';
-import MyZone from './myZone';
 import { AuthContext } from '../AuthContext/AuthContext';
 // Define your Tab screens as a separate component.
 function TabScreens() {
   return (
-    <Tabs>
+    <Tabs screenOptions={{
+      headerShown:false
+    }}>
       <Tabs.Screen
         name="home"
         options={{
@@ -48,7 +49,7 @@ function TabScreens() {
 const Drawer = createDrawerNavigator();
 
 export default function DrawerLayout() {
-  const {notifications} =useContext(AuthContext);
+  const { notifications } = useContext(AuthContext);
 
   return (
     <Drawer.Navigator
@@ -82,6 +83,8 @@ export default function DrawerLayout() {
             {/* Enlarged Search Bar */}
             <TextInput
               placeholder="Search..."
+              placeholderTextColor="#888"
+
               style={{
                 fontFamily: 'outfit',
                 backgroundColor: '#f0f0f0',
@@ -119,6 +122,15 @@ export default function DrawerLayout() {
                 }}>{notifications.length}</Text>
               </View>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={{ padding: 5 }}
+              onPress={() => {
+                router.push('/components/LoadingPage');
+              }}
+            >
+              <Ionicons name="reload" size={24} color="black" />
+     
+            </TouchableOpacity>
           </View>
         ),
       }}
@@ -127,7 +139,7 @@ export default function DrawerLayout() {
         name="Tabs"
         component={TabScreens}
         options={{
-          drawerLabel: 'Home', 
+          drawerLabel: 'Home',
           drawerIcon: ({ color }) => <FontAwesome name="home" size={30} color={color} />,
         }}
       />
@@ -135,3 +147,6 @@ export default function DrawerLayout() {
     </Drawer.Navigator>
   );
 }
+
+
+

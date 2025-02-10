@@ -13,22 +13,19 @@ import { db } from '../../configs/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
-import { Colors } from "../../constants/Colors"
+import { Colors } from "../../constants/Colors";
+import moment from "moment-timezone";
+import { router } from 'expo-router';
 
-
-const parseTime = (timeStr) => {
-  // Expecting format "hh:mm AM/PM"
-  const [time, modifier] = timeStr.split(' ');
-  let [hours, minutes] = time.split(':').map(Number);
-  if (modifier === 'PM' && hours < 12) {
-    hours += 12;
-  }
-  if (modifier === 'AM' && hours === 12) {
-    hours = 0;
-  }
-  const now = new Date();
-  now.setHours(hours, minutes, 0, 0);
-  return now;
+// Helper function to format a Firestore Timestamp to "hh:mm AM/PM"
+const formatTime = (timestamp) => {
+  // Convert Firestore Timestamp to a Date object
+  const date = timestamp.toDate();
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 };
 
 const ClassesModule = () => {
@@ -38,10 +35,7 @@ const ClassesModule = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  
- 
-
-  // Get today's full day name (e.g., "Thursday")
+  // Get today's full day name (e.g., "Friday")
   const todayFull = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
   // Subscribe to the Schedules collection in Firestore for real-time updates.
@@ -54,13 +48,19 @@ const ClassesModule = () => {
           id: doc.id,
           ...doc.data(),
         }));
-        // Filter schedules to include only those that match the selected standard
-        // and the current day.
-        const filtered = schedules.filter(
-          (schedule) =>
-            schedule.class.toLowerCase() === selectedStandard.toLowerCase() &&
-            schedule.day.toLowerCase() === todayFull.toLowerCase()
-        );
+
+        // Filter schedules to include only those that match the selected standard and the current day.
+        const filtered = schedules.filter((schedule) => {
+          // Ensure that schedule.class and schedule.day have a default value if null.
+          const scheduleClass = schedule.class || "";
+          const scheduleDay = schedule.day || "";
+          const standard = selectedStandard || "";
+          return (
+            scheduleClass.toLowerCase() === standard.toLowerCase() &&
+            scheduleDay.toLowerCase() === todayFull.toLowerCase()
+          );
+        });
+
         setScheduleData(filtered);
         setError(null);
         setLoading(false);
@@ -74,18 +74,20 @@ const ClassesModule = () => {
     return () => unsubscribe();
   }, [selectedStandard, todayFull]);
 
-  const currentTime = new Date();
+  // Define the schedule timezone and get the current time in that timezone.
+  const scheduleTimeZone = "Asia/Kolkata";
+  const currentTime = moment().tz(scheduleTimeZone);
 
-  // Split schedules into ongoing and upcoming based on current time.
+  // Filter schedules into ongoing and upcoming based on the current time.
   const ongoingClasses = scheduleData.filter((schedule) => {
-    const start = parseTime(schedule.startTime);
-    const end = parseTime(schedule.endTime);
-    return (currentTime >= start && currentTime < end);
+    const start = moment(schedule.startTime.toDate()).tz(scheduleTimeZone);
+    const end = moment(schedule.endTime.toDate()).tz(scheduleTimeZone);
+    return currentTime.isSameOrAfter(start) && currentTime.isBefore(end);
   });
 
   const upcomingClasses = scheduleData.filter((schedule) => {
-    const start = parseTime(schedule.startTime);
-    return currentTime < start;
+    const start = moment(schedule.startTime.toDate()).tz(scheduleTimeZone);
+    return currentTime.isBefore(start);
   });
 
   if (loading) {
@@ -108,19 +110,23 @@ const ClassesModule = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView>
-        {/* Ongoing Classes */}
+        {/* Ongoing Classes Section */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Ongoing Classes</Text>
           {ongoingClasses.length > 0 ? (
             ongoingClasses.map((classItem) => (
-              <TouchableOpacity key={classItem.id} style={styles.classItem}>
+              <TouchableOpacity
+                key={classItem.id}
+                style={styles.classItem}
+                onPress={() => router.push("/components/Schedule")}
+              >
                 <View style={styles.classIcon}>
                   <Ionicons name="book" size={20} color={Colors.WHITE} />
                 </View>
                 <View>
                   <Text style={styles.classSubject}>{classItem.subject}</Text>
                   <Text style={styles.classInfo}>
-                    {classItem.startTime} - {classItem.endTime} • {classItem.teacher}
+                    {formatTime(classItem.startTime)} - {formatTime(classItem.endTime)} • {classItem.teacher}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -130,7 +136,7 @@ const ClassesModule = () => {
           )}
         </View>
 
-        {/* Upcoming Classes */}
+        {/* Upcoming Classes Section */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Upcoming Classes</Text>
           {upcomingClasses.length > 0 ? (
@@ -138,7 +144,7 @@ const ClassesModule = () => {
               <TouchableOpacity
                 key={classItem.id}
                 style={styles.classItem}
-                onPress={() => navigation.navigate('Schedule')}
+                onPress={() => router.push('/components/Schedule')}
               >
                 <View style={styles.classIcon}>
                   <Ionicons name="time" size={20} color={Colors.WHITE} />
@@ -146,7 +152,7 @@ const ClassesModule = () => {
                 <View>
                   <Text style={styles.classSubject}>{classItem.subject}</Text>
                   <Text style={styles.classInfo}>
-                    {classItem.startTime} - {classItem.endTime} • {classItem.teacher}
+                    {formatTime(classItem.startTime)} - {formatTime(classItem.endTime)} • {classItem.teacher}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -222,10 +228,6 @@ const styles = StyleSheet.create({
     color: '#757575',
     textAlign: 'center',
     marginVertical: 8,
-  },
-  // Ensure Colors.WHITE is defined for styling consistency.
-  WHITE: {
-    color: '#fff',
   },
 });
 

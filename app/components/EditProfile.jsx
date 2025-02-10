@@ -7,9 +7,10 @@ import {
   StyleSheet,
   Alert,
   ToastAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { AuthContext } from '../AuthContext/AuthContext'; // Adjust path as needed
+import { AuthContext } from '../AuthContext/AuthContext'; 
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 import { useNavigation } from 'expo-router';
@@ -19,12 +20,15 @@ const EditProfile = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false); 
   const navigation = useNavigation();
+
   useEffect(() => {
     navigation.setOptions({
       title: '',
-    })
-  }, [])
+    });
+  }, [navigation]);
+
   // Preload current user data
   useEffect(() => {
     setFullName(contextName || '');
@@ -45,6 +49,8 @@ const EditProfile = () => {
       return;
     }
 
+    setIsLoading(true); // Start loading
+
     try {
       const user = auth.currentUser;
       if (user) {
@@ -52,12 +58,17 @@ const EditProfile = () => {
           fullName,
           email,
         });
-        Alert.alert('Success', 'Profile updated successfully.');
+        Alert.alert(
+          'Success',
+          'Profile updated successfully. Please Restart Your Application Once'
+        );
         navigation.goBack();
       }
     } catch (error) {
       console.error('Error updating profile:', error);
       Alert.alert('Error', 'Failed to update profile.');
+    } finally {
+      setIsLoading(false); // Stop loading
     }
   };
 
@@ -68,6 +79,8 @@ const EditProfile = () => {
         <Text style={{ fontFamily: 'outfit' }}>Full Name</Text>
         <TextInput
           style={styles.input}
+                    placeholderTextColor='#888'
+          
           placeholder="Enter Full Name"
           value={fullName}
           onChangeText={setFullName}
@@ -80,6 +93,8 @@ const EditProfile = () => {
         <TextInput
           style={styles.input}
           placeholder="Enter Email"
+          placeholderTextColor='#888'
+
           value={email}
           onChangeText={setEmail}
         />
@@ -90,14 +105,25 @@ const EditProfile = () => {
         <Text style={{ fontFamily: 'outfit' }}>Password</Text>
         <TextInput
           style={styles.input}
+          placeholderTextColor='#888'
+
           secureTextEntry={true}
           placeholder="Enter Password"
           onChangeText={setPassword}
         />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleUpdateProfile}>
-        <Text style={styles.buttonText}>Save Changes</Text>
+      {/* Save Changes Button */}
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleUpdateProfile}
+        disabled={isLoading} // Disable button while loading
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.WHITE} />
+        ) : (
+          <Text style={styles.buttonText}>Save Changes</Text>
+        )}
       </TouchableOpacity>
     </View>
   );

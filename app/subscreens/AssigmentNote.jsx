@@ -1,18 +1,35 @@
-import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert, 
+  Dimensions, 
+  ActivityIndicator,
+  TextInput,
+  RefreshControl
+} from 'react-native';
 import { db } from "../../configs/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const AssignmentNote = React.memo(() => {
   const { selectedStandard } = useContext(AuthContext);
   const [assignmentNotes, setAssignmentNotes] = useState([]);
-  const [loading, setLoading] = useState(true); // Start with true while loading data
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
+
+  // Search states for filtering by Title and Subject
+  const [searchTitle, setSearchTitle] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
 
   useEffect(() => {
     navigation.setOptions({
@@ -20,45 +37,60 @@ const AssignmentNote = React.memo(() => {
     });
   }, [navigation]);
 
-  useEffect(() => {
-    const fetchAssignmentNotes = async () => {
-      try {
-        const notesCollectionRef = collection(db, 'AssigmentNotes');
-        const querySnapshot = await getDocs(notesCollectionRef);
-        const fetchedNotes = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        setAssignmentNotes(fetchedNotes);
-      } catch (err) {
-        console.error('Error fetching assignment notes:', err);
-        setError('Failed to load notes. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAssignmentNotes();
+  const fetchAssignmentNotes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const notesCollectionRef = collection(db, 'AssigmentNotes');
+      const querySnapshot = await getDocs(notesCollectionRef);
+      const fetchedNotes = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setAssignmentNotes(fetchedNotes);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching assignment notes:', err);
+      setError('Failed to load notes. Please try again later.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const openDriveLink = useCallback(
-    (url) => {
-      if (!url) {
-        Alert.alert('Invalid Link', 'This document is not currently available');
-        return;
-      }
-      navigation.navigate('WebViewScreen', { url });
-    },
-    [navigation]
-  );
+  useEffect(() => {
+    fetchAssignmentNotes();
+  }, [fetchAssignmentNotes]);
 
-  const renderNoteItem = useCallback(
-    ({ item }) => (
-      <TouchableOpacity
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchAssignmentNotes();
+  }, [fetchAssignmentNotes]);
+
+  const openDriveLink = useCallback((url) => {
+    if (!url) {
+      Alert.alert('Invalid Link', 'This document is not currently available');
+      return;
+    }
+    router.push({
+      pathname: '/helper/WebViewScreen',
+      params: { url },
+    });
+  }, []);
+
+  // Filter notes based on selected standard and search inputs.
+const filteredNotes = useMemo(()=>{
+  return assignmentNotes.filter(
+    (note) =>{
+    const matchesStandard = note.class.toLowerCase() === selectedStandard.toLowerCase() 
+    const matchesTitle = note.title.toLowerCase().includes(searchTitle.toLowerCase()) ;
+    const matchesSubject = note.subject.toLowerCase().includes(searchSubject.toLowerCase());
+    return matchesStandard && matchesTitle && matchesSubject;
+  })
+},[assignmentNotes, selectedStandard, searchTitle, searchSubject])
+
+  const RenderNoteItem = useCallback(({ item }) => (
+      <View
         style={styles.card}
-        activeOpacity={0.9}
-        onPress={() => item.drivelink && openDriveLink(item.drivelink)}
       >
         <View style={styles.cardHeader}>
           <Text style={styles.title} numberOfLines={2}>
@@ -77,16 +109,19 @@ const AssignmentNote = React.memo(() => {
         </View>
 
         {item.drivelink ? (
-          <View style={styles.linkContainer}>
+          <TouchableOpacity style={styles.linkContainer}         onPress={() => item.drivelink && openDriveLink(item.drivelink)}>
             <Text style={styles.linkText}>🔗 Open Document</Text>
-          </View>
+          </TouchableOpacity>
         ) : (
           <Text style={styles.disabledLink}>🚫 Link Unavailable</Text>
         )}
-      </TouchableOpacity>
+      </View>
     ),
     [openDriveLink]
   );
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
 
   if (loading) {
     return (
@@ -97,7 +132,7 @@ const AssignmentNote = React.memo(() => {
     );
   }
 
-  if (error) {
+  if (error && assignmentNotes.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorIcon}>⚠️</Text>
@@ -106,32 +141,43 @@ const AssignmentNote = React.memo(() => {
     );
   }
 
-  // Filter notes based on selectedStandard
-  const filteredNotes = assignmentNotes.filter(
-    (note) => note.class.toLowerCase() === selectedStandard.toLowerCase()
-  );
-
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Assignment Notes</Text>
-        <Text style={styles.subHeader}>{selectedStandard} Study Materials</Text>
-      </View>
-
       <FlatList
         data={filteredNotes}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
+        renderItem={({ item }) => <RenderNoteItem item={item} />}
+        ListHeaderComponent={   
+        <View>
+        <View style={styles.headerContainer}>
+        <Text style={styles.header}>{selectedStandard} Study Materials</Text>
+      </View>
+      <View style={[styles.searchContainer]}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by Title"
+          placeholderTextColor="#888"
+          value={searchTitle}
+          onChangeText={setSearchTitle}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by Subject"
+          placeholderTextColor="#888"
+          value={searchSubject}
+          onChangeText={setSearchSubject}
+        />
+      </View></View>}
+        // The search bar is the second child in the header (index 1) and will be sticky.
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyText}>
-              No notes available for {selectedStandard}
-            </Text>
-          </View>
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
-        renderItem={renderNoteItem}
+        initialNumToRender={5}
+        windowSize={10}
+        maxToRenderPerBatch={5}
+        removeClippedSubviews={true}
       />
     </View>
   );
@@ -140,8 +186,10 @@ const AssignmentNote = React.memo(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingTop: 16,
+    backgroundColor: '#f0f4f8',
+    paddingTop: 10,
+    paddingBottom: 40,
+
   },
   headerContainer: {
     paddingHorizontal: 24,
@@ -156,6 +204,25 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 16,
     color: '#636E72',
+    marginBottom: 12,
+  },
+  searchContainer: {
+    width: '100%',
+    marginBottom: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  stickyHeader: {
+    zIndex: 1,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#CCC',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 16,
+    marginBottom: 8,
+    backgroundColor: '#FFF',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -240,21 +307,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#D32F2F',
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyText: {
-    color: '#636E72',
     textAlign: 'center',
     fontSize: 16,
   },

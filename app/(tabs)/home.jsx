@@ -1,58 +1,47 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { 
+import React, { useEffect, useMemo, useCallback, useContext } from 'react';
+import {
   SafeAreaView,
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
   TouchableOpacity,
   useWindowDimensions,
-  Platform
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { router, useNavigation } from 'expo-router';
 import { AuthContext } from '../AuthContext/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../../configs/firebaseConfig';
+
+// A simple loading component
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer}>
+    <Text style={styles.loadingText}>Loading...</Text>
+  </View>
+);
 
 const Home = () => {
-  const { selectedStandard, name } = useContext(AuthContext);
-  const { width, height } = useWindowDimensions(); // Get current dimensions
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { selectedStandard, name, userData } = useContext(AuthContext);
+  const { width, height } = useWindowDimensions();
   const navigation = useNavigation();
 
+  // Hide the header
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
-
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
-      }
-      setLoading(false);
-    };
-    
-    fetchUserData();
-  }, []);
-
-  // Common items for all standards
-  const commonItems = [
+  }, [navigation]);
+  // --- Memoize static data objects ---
+  const commonItems = useMemo(() => [
     { title: 'Premium Courses', icon: '📘' },
     { title: 'Books', icon: '📚' },
     { title: 'Free Lectures', icon: '🎥' },
     { title: 'Free Tests', icon: '📝' },
-    { title: 'Quiz', icon: '❓' },
     { title: 'Assignment & Notes', icon: '🗒️' },
     { title: 'Previous Years Paper', icon: '📄' },
     { title: 'Experiments Videos', icon: '🧪' },
-  ];
+    { title: 'Quiz', icon: '❓' },
 
-  // Map standards to course items
-  const courses = {
+  ], []);
+
+  const courses = useMemo(() => ({
     '6th Class': commonItems,
     '7th Class': commonItems,
     '8th Class': commonItems,
@@ -62,10 +51,9 @@ const Home = () => {
     '12th Class': commonItems,
     'JEE MAINS': commonItems,
     'NEET': commonItems,
-  };
+  }), [commonItems]);
 
-  // Mapping for navigating to subscreens
-  const categoryDbMapping = {
+  const categoryDbMapping = useMemo(() => ({
     'Premium Courses': 'PremiumCourse',
     'Books': 'Books',
     'Free Lectures': 'FreeLecture',
@@ -74,62 +62,78 @@ const Home = () => {
     'Assignment & Notes': 'AssigmentNote',
     'Previous Years Paper': 'PreviousYearPaper',
     'Experiments Videos': 'ExperimentVideo',
-  };
+  }), []);
 
-  // Limit the container width for large screens (e.g., web/laptop)
+  // --- Compute layout values ---
   const containerMaxWidth = 800;
   const containerWidth = Math.min(width, containerMaxWidth);
-
-  // Calculate sizes based on the containerWidth instead of full screen width.
   const cardWidth = containerWidth * 0.44;
-  const iconFontSize = containerWidth * 0.12;  // You can adjust this multiplier to reduce the icon size further if needed
+  const iconFontSize = containerWidth * 0.12;
   const cardTitleFontSize = containerWidth * 0.04;
   const greetingFontSize = containerWidth * 0.045;
   const categoryHeadingFontSize = containerWidth * 0.08;
 
-  const renderCourseCard = ({ item }) => (
-    <TouchableOpacity 
-      style={[styles.card, { width: cardWidth, paddingVertical: height * 0.02 }]} 
+  // --- Memoize the render function for course cards ---
+  const renderCourseCard = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[styles.card, { width: cardWidth, paddingVertical: height * 0.02 }]}
       onPress={() => router.push(`/subscreens/${categoryDbMapping[item.title]}`)}
     >
       <Text style={[styles.cardIcon, { fontSize: iconFontSize }]}>{item.icon}</Text>
       <Text style={[styles.cardTitle, { fontSize: cardTitleFontSize }]}>{item.title}</Text>
     </TouchableOpacity>
-  );
+  ), [cardWidth, height, iconFontSize, cardTitleFontSize, categoryDbMapping]);
 
-  return (
-    <SafeAreaView style={styles.safeContainer}>
-      <View style={[styles.container, { width: containerWidth }]}>
-        {/* Header */}
-        <View style={[styles.headerContainer, { paddingVertical: height * 0.02 }]}>
-          <Text style={[styles.greeting, { fontSize: greetingFontSize }]}>
-            Hello {name}
-          </Text>
-          <Text style={[styles.categoryHeading, { fontSize: categoryHeadingFontSize }]}>
-            {selectedStandard}
-          </Text>
+  // --- Memoize the main content ---
+  const content = useMemo(() => {
+    if (!name || !selectedStandard) {
+      return <LoadingScreen />;
+    }
+
+    return (
+      <SafeAreaView style={styles.safeContainer}>
+        <View style={[styles.container, { width: containerWidth }]}>
+          {/* Header */}
+          <View style={[styles.headerContainer, { paddingVertical: height * 0.02 }]}>
+            <Text style={[styles.greeting, { fontSize: greetingFontSize }]}>
+              Radhe Radhe {name}
+            </Text>
+            <Text style={[styles.categoryHeading, { fontSize: categoryHeadingFontSize }]}>
+              {selectedStandard}
+            </Text>
+          </View>
+
+          {/* Course Cards */}
+          <FlatList
+            data={courses[selectedStandard] || []}
+            renderItem={renderCourseCard}
+            keyExtractor={(item) => item.title}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: height * 0.15 }}
+          />
         </View>
+      </SafeAreaView>
+    );
+  }, [
+    name,
+    selectedStandard,
+    containerWidth,
+    height,
+    greetingFontSize,
+    categoryHeadingFontSize,
+    courses,
+    renderCourseCard,
+  ]);
 
-        {/* Course Cards */}
-        <FlatList
-          data={courses[selectedStandard] || []}
-          renderItem={renderCourseCard}
-          keyExtractor={(item) => item.title}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: height * 0.15 }}
-        />
-      </View>
-    </SafeAreaView>
-  );
+  return content;
 };
 
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
     backgroundColor: Colors.WHITE,
-    // Center the container for larger screens and web
     alignItems: 'center',
   },
   container: {
@@ -173,6 +177,16 @@ const styles = StyleSheet.create({
     fontFamily: 'outfit-medium',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.WHITE,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

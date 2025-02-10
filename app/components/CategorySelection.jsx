@@ -1,61 +1,61 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView, 
+  ActivityIndicator 
+} from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { router, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../AuthContext/AuthContext';
+
 const CategorySelection = () => {
   const navigation = useNavigation();
   const { selectedStandard, setSelectedStandard } = useContext(AuthContext);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  console.log(selectedStandard);
+  const [loading, setLoading] = useState(false);
+
+  console.log('Current selectedStandard:', selectedStandard);
+
+  // If nothing is selected, default to the context’s selectedStandard
+  useEffect(() => {
+    if (!selectedCategory && selectedStandard) {
+      setSelectedCategory(selectedStandard);
+    }
+  }, [selectedStandard, selectedCategory]);
+
   useEffect(() => {
     navigation.setOptions({
       title: "Choose Your Category",
       header: ({ navigation }) => (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 10,
-            height: 60,
-            backgroundColor: '#fff',
-            elevation: 4, // For Android shadow
-            shadowColor: '#000', // For iOS shadow
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 2,
-          }}
-        >
+        <View style={styles.headerContainer}>
           {/* Side Bar Button */}
-          <TouchableOpacity
-            style={{ padding: 5 }}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={{ padding: 5 }} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="black" />
           </TouchableOpacity>
 
           {/* Enlarged Search Bar */}
-          <Text style={{ fontFamily: 'outfit-bold', fontSize: 20 }}>Choose Your Category</Text>
+          <Text style={styles.headerTitle}>Choose Your Category</Text>
 
           {/* Notification Button */}
           <TouchableOpacity
             style={{ padding: 5 }}
-            onPress={() => {
-              console.log('Notification pressed');
-            }}
+            onPress={() => console.log('Notification pressed')}
           >
             <Ionicons name="notifications-outline" size={24} color="black" />
           </TouchableOpacity>
         </View>
-      )
-    })
-  }, [navigation])
+      ),
+    });
+  }, [navigation]);
 
   const categories = [
     { name: 'JEE MAINS', level: 'Competitive', value: 'JEE MAINS' },
-    { name: 'NEET', level: 'Competitive', value: 'JEE MAINS' },
+    { name: 'NEET', level: 'Competitive', value: 'NEET' },
     { name: '12th Class', level: 'Senior', value: '12th Class' },
     { name: '11th Class', level: 'Senior', value: '11th Class' },
     { name: '10th Class', level: 'Secondary', value: '10th Class' },
@@ -68,21 +68,30 @@ const CategorySelection = () => {
   const handleSelect = (category) => {
     setSelectedCategory(category);
   };
-  const handleContinue = () => {
-    setSelectedStandard(selectedCategory)
-    console.log(selectedCategory)
-    router.replace("/(tabs)/home")
-  }
 
+  const handleContinue = () => {
+    setLoading(true);
+    
+    // Simulate a delay (e.g., waiting for an async operation)
+    setTimeout(() => {
+      const categoryToSet = selectedCategory || selectedStandard;
+      setSelectedStandard(categoryToSet);
+      console.log('Category selected:', categoryToSet);
+      router.replace("/(tabs)/home");
+    }, 1000); // Delay for 500ms to allow the spinner to appear
+  };
+  
   return (
     <ScrollView contentContainerStyle={styles.container}>
-
       <TouchableOpacity style={styles.inputContainer}>
         <Ionicons name="school" size={20} color={Colors.PRIMARY} style={styles.inputIcon} />
+        {/* Display the selected category (non-editable) */}
         <TextInput
           style={styles.input}
-          placeholder='Select Standard'
-          placeholderTextColor={Colors.GRAY}
+          placeholder="Select Standard"
+          placeholderTextColor="#888"
+          editable={false}
+          value={selectedCategory || ''}
         />
       </TouchableOpacity>
 
@@ -92,29 +101,35 @@ const CategorySelection = () => {
             key={index}
             style={[
               styles.card,
-              selectedCategory === category.name && styles.selectedCard
+              selectedCategory === category.name && styles.selectedCard,
             ]}
             onPress={() => handleSelect(category.name)}
             activeOpacity={0.8}
           >
             <Text style={styles.cardTitle}>{category.name}</Text>
             <Text style={styles.cardSubtitle}>{category.level}</Text>
-            <View style={[
-              styles.levelIndicator,
-              { backgroundColor: Colors.PRIMARY + '20' }
-            ]}>
-              <Ionicons
-                name="ribbon"
-                size={16}
-                color={Colors.PRIMARY}
-              />
+            <View
+              style={[
+                styles.levelIndicator,
+                { backgroundColor: Colors.PRIMARY + '20' },
+              ]}
+            >
+              <Ionicons name="ribbon" size={16} color={Colors.PRIMARY} />
             </View>
           </TouchableOpacity>
         ))}
       </View>
 
-      <TouchableOpacity style={styles.continueButton}>
-        <Text style={styles.continueButtonText} onPress={handleContinue}>Continue</Text>
+      <TouchableOpacity
+        style={styles.continueButton}
+        onPress={handleContinue}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.continueButtonText}>Continue</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -127,19 +142,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
   },
-  title: {
-    backgroundColor: Colors.PRIMARY,
-    color: Colors.WHITE,
-    fontSize: 20,
-    paddingLeft: 17,
-    paddingRight: 17,
-    paddingTop: 6,
-    paddingBottom: 6,
-
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    height: 60,
+    backgroundColor: '#fff',
+    elevation: 4, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  headerTitle: {
     fontFamily: 'outfit-bold',
-    // marginBottom: 10,
-    textAlign: 'center',
-    borderRadius: 14,
+    fontSize: 20,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -153,7 +171,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    borderWidth: 1
+    borderWidth: 1,
   },
   inputIcon: {
     marginRight: 10,
@@ -206,9 +224,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.PRIMARY,
     borderRadius: 12,
     padding: 18,
-    // marginTop: 10,
     marginBottom: 20,
     elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   continueButtonText: {
     color: Colors.WHITE,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
     View,
     Text,
@@ -33,7 +33,9 @@ const Schedule = () => {
     useEffect(() => {
         navigation.setOptions({
             title: 'Schedule',
-            headerTitle: () => <Text style={{ fontSize: 24, fontFamily: 'outfit-medium' }}>Schedule</Text>,
+            headerTitle: () => (
+                <Text style={{ fontSize: 24, fontFamily: 'outfit-medium' }}>Schedule</Text>
+            ),
         });
     }, [navigation]);
 
@@ -68,6 +70,7 @@ const Schedule = () => {
             schedule.day.toLowerCase() === selectedDay.toLowerCase() &&
             schedule.class.toLowerCase() === selectedStandard.toLowerCase()
     );
+    // console.log(scheduleData);
 
     // Render each day button in the horizontal day list.
     const renderDayItem = ({ item }) => {
@@ -100,37 +103,48 @@ const Schedule = () => {
     };
 
     // Render each schedule card.
-    const renderScheduleItem = ({ item }) => (
-        <View style={[
-            styles.scheduleCard,
-            { 
-                marginHorizontal: SCREEN_WIDTH > 500 ? 20 : 8,
-                padding: SCREEN_WIDTH > 500 ? 24 : 16 
-            }
-        ]}>
-            <View style={styles.timeContainer}>
-                {/* Using clock emoji instead of an icon */}
-                <Text style={{ fontSize: 20, color: "#5E35B1" }}>⏰</Text>
-                <Text style={styles.timeText}>
-                    {item.startTime} - {item.endTime}
-                </Text>
+    const renderScheduleItem = ({ item }) => {
+        // Convert Firestore Timestamps to readable time strings.
+        const formatTime = (timestamp) =>
+            timestamp && typeof timestamp.toDate === 'function'
+                ? timestamp.toDate().toLocaleTimeString()
+                : 
+                timestamp;
+
+        return (
+            <View
+                style={[
+                    styles.scheduleCard,
+                    {
+                        marginHorizontal: SCREEN_WIDTH > 500 ? 20 : 8,
+                        padding: SCREEN_WIDTH > 500 ? 24 : 16,
+                    },
+                ]}
+            >
+                <View style={styles.timeContainer}>
+                    {/* Using clock emoji instead of an icon */}
+                    <Text style={{ fontSize: 20, color: "#5E35B1" }}>⏰</Text>
+                    <Text style={styles.timeText}>
+                        {formatTime(item.startTime)} - {formatTime(item.endTime)}
+                    </Text>
+                </View>
+
+                <Text style={styles.subjectText}>{item.subject}</Text>
+
+                <View style={styles.detailRow}>
+                    {/* Using person emoji instead of an icon */}
+                    <Text style={{ fontSize: 16, color: "#757575" }}>👤</Text>
+                    <Text style={styles.detailText}>{item.teacher}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                    {/* Using location emoji instead of an icon */}
+                    <Text style={{ fontSize: 16, color: "#757575" }}>📍</Text>
+                    <Text style={styles.detailText}>{item.venue}</Text>
+                </View>
             </View>
-            
-            <Text style={styles.subjectText}>{item.subject}</Text>
-            
-            <View style={styles.detailRow}>
-                {/* Using person emoji instead of an icon */}
-                <Text style={{ fontSize: 16, color: "#757575" }}>👤</Text>
-                <Text style={styles.detailText}>{item.teacher}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-                {/* Using location emoji instead of an icon */}
-                <Text style={{ fontSize: 16, color: "#757575" }}>📍</Text>
-                <Text style={styles.detailText}>{item.venue}</Text>
-            </View>
-        </View>
-    );
+        );
+    };
 
     if (loading) {
         return (
@@ -173,7 +187,7 @@ const Schedule = () => {
                 keyExtractor={item => item.id}
                 contentContainerStyle={[
                     styles.listContent,
-                    { paddingBottom: SCREEN_HEIGHT * 0.1 }
+                    { paddingBottom: SCREEN_HEIGHT * 0.1 },
                 ]}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
@@ -191,7 +205,7 @@ const Schedule = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.WHITE
+        backgroundColor: Colors.WHITE,
     },
     headerContainer: {
         padding: 20,

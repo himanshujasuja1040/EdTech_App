@@ -1,37 +1,47 @@
-import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  FlatList, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Dimensions, 
-  Alert 
+import React, { useEffect, useState, useContext, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+  Alert,
+  TextInput,
+  RefreshControl
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const FreeTest = () => {
   const [tests, setTests] = useState([]);
-  const [loading, setLoading] = useState(true); // Initially true while loading
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { selectedStandard } = useContext(AuthContext);
   const navigation = useNavigation();
+
+  // Search states for filtering tests by title and subject
+  const [searchTitle, setSearchTitle] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
 
   useEffect(() => {
     navigation.setOptions({
       title: 'Test',
+      // headerStyle: { backgroundColor: '#f0f4f8' }
     });
   }, [navigation]);
 
   // Function to fetch tests from Firestore
   const fetchTests = useCallback(async () => {
     try {
+      setLoading(true);
       const testsCollectionRef = collection(db, 'FreeTest');
       const querySnapshot = await getDocs(testsCollectionRef);
       const fetchedTests = querySnapshot.docs.map(doc => ({
@@ -45,6 +55,7 @@ const FreeTest = () => {
       setError('Failed to load tests. Pull down to refresh.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -52,37 +63,63 @@ const FreeTest = () => {
     fetchTests();
   }, [fetchTests]);
 
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchTests();
+  }, [fetchTests]);
 
   const handleOpenTest = useCallback((url) => {
     if (!url) {
       Alert.alert('Invalid Test', 'This test is not currently available');
       return;
     }
-    
-  }, [navigation]);
+    router.push({
+      pathname: '/helper/WebViewScreen',
+      params: { url },
+    });
+  }, []);
 
-  const renderTest = useCallback(({ item }) => (
-    <TouchableOpacity 
+  // Filter tests based on the selected standard, title, and subject
+  const filteredTests = useMemo(() => {
+    return tests.filter(test => {
+      const matchesStandard = test.class.toLowerCase() === selectedStandard.toLowerCase();
+      const matchesTitle = test.title.toLowerCase().includes(searchTitle.toLowerCase());
+      const matchesSubject = test.subject.toLowerCase().includes(searchSubject.toLowerCase());
+      return matchesStandard && matchesTitle && matchesSubject;
+    });
+  }, [tests, selectedStandard, searchTitle, searchSubject]);
+
+  // Test card component (memoized to prevent unnecessary re-renders)
+  const TestCard = useCallback(({ item }) => (
+    <View
       style={styles.testCard}
-      activeOpacity={0.9}
-      onPress={() => item.drivelink && handleOpenTest(item.drivelink)}
+    // Optionally add an onPress if you want the entire card to be clickable
     >
       <View style={styles.cardHeader}>
         <Text style={styles.classBadge}>📚 {item.class}</Text>
         <Text style={styles.testType}>📝 Practice Test</Text>
       </View>
-      
+
       <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.subjectText}>Subject: {item.subject}</Text>
 
       {item.drivelink ? (
-        <View style={styles.linkContainer}>
+        <TouchableOpacity style={styles.linkContainer} onPress={() =>
+          item.drivelink
+            ? handleOpenTest(item.drivelink)
+            : Alert.alert('Invalid Test', 'This test is not currently available')
+        }>
           <Text style={styles.linkText}>Start Test →</Text>
-        </View>
+        </TouchableOpacity>
       ) : (
         <Text style={styles.disabledLink}>🚫 Currently Unavailable</Text>
       )}
-    </TouchableOpacity>
+    </View>
   ), [handleOpenTest]);
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+
 
   if (loading) {
     return (
@@ -93,7 +130,7 @@ const FreeTest = () => {
     );
   }
 
-  if (error) {
+  if (error && tests.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorIcon}>⚠️</Text>
@@ -105,23 +142,37 @@ const FreeTest = () => {
     );
   }
 
-  // Filter tests based on the selected standard (e.g., "11th Class")
-  const filteredTests = tests.filter(test => 
-    test.class.toLowerCase() === selectedStandard.toLowerCase()
-  );
-
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Practice Tests</Text>
-        <Text style={styles.subHeader}>{selectedStandard} Assessment Papers</Text>
-      </View>
-
       <FlatList
         data={filteredTests}
-        keyExtractor={item => item.id}
-        renderItem={renderTest}
-        contentContainerStyle={styles.listContent}
+        keyExtractor={keyExtractor}
+        renderItem={({ item }) => <TestCard item={item} />}
+        ListHeaderComponent={
+          <View>
+
+            <View style={styles.headerContainer}>
+              <Text style={styles.header}>{selectedStandard} Assessment Papers</Text>
+            </View>
+
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Title"
+                placeholderTextColor="#888"
+                value={searchTitle}
+                onChangeText={setSearchTitle}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Subject"
+                placeholderTextColor="#888"
+                value={searchSubject}
+                onChangeText={setSearchSubject}
+              />
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📭</Text>
@@ -130,7 +181,15 @@ const FreeTest = () => {
             </Text>
           </View>
         }
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        initialNumToRender={5}
+        windowSize={10}
+        maxToRenderPerBatch={5}
+        removeClippedSubviews={true}
       />
     </View>
   );
@@ -139,22 +198,33 @@ const FreeTest = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#f0f4f8',
     paddingTop: 16,
+    paddingBottom:40,
+
   },
   headerContainer: {
     paddingHorizontal: 20,
     marginBottom: 16,
   },
   header: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '600',
     color: '#2D3436',
     marginBottom: 4,
   },
-  subHeader: {
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#CCC',
+    borderRadius: 6,
+    padding: 10,
     fontSize: 16,
-    color: '#636E72',
+    marginBottom: 8,
+    backgroundColor: '#FFF',
   },
   testCard: {
     backgroundColor: '#FFFFFF',
@@ -192,8 +262,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#2D3436',
-    marginBottom: 16,
+    marginBottom: 8,
     lineHeight: 24,
+  },
+  subjectText: {
+    fontSize: 16,
+    color: '#636E72',
+    marginBottom: 16,
   },
   linkContainer: {
     backgroundColor: '#4CAF5020',
