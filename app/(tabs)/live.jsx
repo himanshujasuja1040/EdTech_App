@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -13,20 +13,25 @@ import { useNavigation } from 'expo-router';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../configs/firebaseConfig';
+import { AuthContext } from '../AuthContext/AuthContext';
 
 const Live = () => {
   const navigation = useNavigation();
+  const {selectedStandardColor}=useContext(AuthContext)
   const [loading, setLoading] = useState(true);
   const [liveVideos, setLiveVideos] = useState([]); // Array to hold all live videos
 
   // Responsive layout dimensions.
-  const { width } = useWindowDimensions();
-  const containerMaxWidth = 800;
-  const containerWidth = Math.min(width * 0.9, containerMaxWidth);
-  const playerWidth = containerWidth;
-  const playerHeight = (playerWidth * 9) / 16;
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
 
-  // Hide header if using Expo Router.
+  // Adjust container width based on orientation.
+  const containerMaxWidth = 800;
+  const containerWidth = Math.min(width * (isPortrait ? 0.9 : 0.8), containerMaxWidth);
+  const playerWidth = containerWidth;
+  const playerHeight = (playerWidth * 9) / 16; // Maintain a 16:9 aspect ratio
+
+  // Hide header (Expo Router).
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
@@ -49,7 +54,6 @@ const Live = () => {
         setLoading(false);
       }
     );
-
     return () => unsubscribe();
   }, []);
 
@@ -63,7 +67,7 @@ const Live = () => {
   };
 
   return (
-    <SafeAreaView style={styles.outerContainer}>
+    <SafeAreaView style={[styles.outerContainer,{backgroundColor:selectedStandardColor}]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.headerTitle}>Live Lecture Streaming</Text>
         {loading && (

@@ -8,17 +8,28 @@ import {
   ToastAndroid,
   ActivityIndicator,
   Platform,
-  Alert
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { Colors } from '../../../constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../../configs/firebaseConfig';
+import Colors from '../../../constants/Colors';
 
 const SignIn = () => {
+  // const Colors={
+  //   WHITE: '#fff',
+  //   PRIMARY: '#000',
+  //   GRAY: '#7d7d7d',
+  //   LIGHT_GRAY: '#f0f0f0',
+  // }
   const navigation = useNavigation();
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
 
   // Hide the header on this screen
   useEffect(() => {
@@ -37,9 +48,9 @@ const SignIn = () => {
         : Alert.alert('', msg);
       return;
     }
-  
+
     const trimmedEmail = email.trim().toLowerCase();
-  
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
@@ -49,7 +60,7 @@ const SignIn = () => {
         : Alert.alert('', msg);
       return;
     }
-  
+
     // Check for Gmail address
     if (!trimmedEmail.endsWith('@gmail.com')) {
       const msg = 'Only Gmail addresses are allowed for sign in.';
@@ -58,7 +69,7 @@ const SignIn = () => {
         : Alert.alert('', msg);
       return;
     }
-  
+
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -95,71 +106,71 @@ const SignIn = () => {
       setLoading(false);
     }
   };
-  
 
   return (
-    <View style={{ padding: 25, backgroundColor: Colors.WHITE, height: '100%', paddingTop: 40 }}>
-      {/* Back Button */}
-      <TouchableOpacity onPress={() => router.back()} >
-        <Ionicons name="arrow-back" size={24} color="black" />
-      </TouchableOpacity>
-      <Text style={{ fontFamily: 'outfit-bold', fontSize: 30, color: Colors.PRIMARY, marginTop: 30 }}>
-        Let's Sign You In
-      </Text>
-      <Text style={{ fontFamily: 'outfit', fontSize: 20, color: Colors.GRAY, marginTop: 20 }}>
-        Chalo Beta Start Kare Padhai
-      </Text>
-      <Text style={{ fontFamily: 'outfit', fontSize: 20, color: Colors.GRAY, marginTop: 10 }}>
-        Yaad to aa rahi hogi Hmhari..!!
-      </Text>
-      {/* Email Input */}
-      <View style={{ marginTop: 50 }}>
-        <Text style={{ fontFamily: 'outfit' }}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholderTextColor="#888"
+    <SafeAreaView
+      style={[
+        styles.container,
+        !isPortrait && styles.containerLandscape, // Adjust padding for landscape if needed
+      ]}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Back Button */}
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="black" />
+        </TouchableOpacity>
 
-          placeholder="Enter Email"
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-      </View>
+        <Text style={styles.title}>Let's Sign You In</Text>
+        <Text style={styles.subtitle}>Chalo Beta Start Kare Padhai</Text>
+        <Text style={styles.subtitleSecondary}>Yaad to aa rahi hogi Hmhari..!!</Text>
 
-      {/* Password Input */}
-      <View style={{ marginTop: 20 }}>
-        <Text style={{ fontFamily: 'outfit' }}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholderTextColor="#888"
+        {/* Email Input */}
+        <View style={styles.emailInputWrapper}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter Email"
+            placeholderTextColor="#888"
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+        </View>
 
-          placeholder="Enter Password"
-          secureTextEntry
-          onChangeText={setPassword}
-        />
-      </View>
+        {/* Password Input */}
+        <View style={styles.inputWrapper}>
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter Password"
+            placeholderTextColor="#888"
+            secureTextEntry
+            onChangeText={setPassword}
+          />
+        </View>
 
-      {/* Sign In Button with Loading Indicator */}
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={onSignIn}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={Colors.WHITE} />
-        ) : (
-          <Text style={styles.buttonText}>Sign In</Text>
-        )}
-      </TouchableOpacity>
+        {/* Sign In Button with Loading Indicator */}
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={onSignIn}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={Colors.WHITE} />
+          ) : (
+            <Text style={styles.buttonText}>Sign In</Text>
+          )}
+        </TouchableOpacity>
 
-      {/* Create Account Button */}
-      <TouchableOpacity
-        style={styles.outlineButton}
-        onPress={() => router.replace('auth/sign-up')}
-      >
-        <Text style={styles.outlineButtonText}>Create Account</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Create Account Button */}
+        <TouchableOpacity
+          style={styles.outlineButton}
+          onPress={() => router.replace('auth/sign-up')}
+        >
+          <Text style={styles.outlineButtonText}>Create Account</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -167,14 +178,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.WHITE,
-    padding: 25,
-    paddingTop: 40,
+    padding: 20,
+    // paddingTop: 20,
+  },
+  containerLandscape: {
+    // Increase horizontal padding for landscape mode
+    paddingHorizontal: 50,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   backButton: {
     marginBottom: 20,
   },
-  inputContainer: {
-    marginBottom: 20,
+  title: {
+    fontFamily: 'outfit-bold',
+    fontSize: 30,
+    color: Colors.PRIMARY,
+    marginTop: 30,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontFamily: 'outfit',
+    fontSize: 20,
+    color: Colors.GRAY,
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  subtitleSecondary: {
+    fontFamily: 'outfit',
+    fontSize: 20,
+    color: Colors.GRAY,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  emailInputWrapper: {
+    marginTop: 50,
+  },
+  inputWrapper: {
+    marginTop: 20,
   },
   label: {
     fontFamily: 'outfit',
@@ -192,7 +235,7 @@ const styles = StyleSheet.create({
     padding: 15,
     backgroundColor: Colors.PRIMARY,
     borderRadius: 15,
-    marginTop: 50
+    marginTop: 50,
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -200,6 +243,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.WHITE,
     textAlign: 'center',
+    fontFamily: 'outfit',
   },
   outlineButton: {
     padding: 15,

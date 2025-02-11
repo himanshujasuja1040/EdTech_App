@@ -1,26 +1,28 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  ToastAndroid, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ToastAndroid,
+  ActivityIndicator,
   Platform,
   Alert,
-  ScrollView
+  ScrollView,
+  SafeAreaView,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Colors } from '../../../constants/Colors';
 import { auth, db } from '../../../configs/firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import CustomDropdown from '../../components/CustomDropdown';
 import { AuthContext } from '../../AuthContext/AuthContext';
-
+import Colors from '../../../constants/Colors';
 const SignUP = () => {
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -31,6 +33,10 @@ const SignUP = () => {
 
   const router = useRouter();
   const navigation = useNavigation();
+
+  // Get current dimensions and determine orientation.
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -105,7 +111,11 @@ const SignUP = () => {
       router.replace('/components/LoadingPage');
     } catch (error) {
       console.error(error.code, error.message);
-      ToastAndroid.show(error.message, ToastAndroid.LONG);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(error.code, ToastAndroid.LONG);
+      } else {
+        Alert.alert(error.code);
+      }
     } finally {
       setLoading(false);
     }
@@ -124,8 +134,12 @@ const SignUP = () => {
   ];
 
   return (
-    <View style={styles.containerWrapper}>
-      <ScrollView style={styles.container}>
+    <SafeAreaView style={[styles.containerWrapper, !isPortrait && styles.containerLandscape]}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Back Button */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="black" />
@@ -232,20 +246,28 @@ const SignUP = () => {
           <ActivityIndicator size="large" color={Colors.PRIMARY} />
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   containerWrapper: {
     flex: 1,
+    backgroundColor: Colors.WHITE,
     position: 'relative', // Ensures the overlay is positioned relative to the parent
+  },
+  containerLandscape: {
+    // Increase horizontal padding in landscape mode
+    paddingHorizontal: 50,
   },
   container: {
     flex: 1,
     backgroundColor: Colors.WHITE,
     padding: 25,
     paddingTop: 50,
+  },
+  scrollContainer: {
+    flexGrow: 1,
   },
   backButton: {
     marginBottom: 20,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { Colors } from '../../constants/Colors';
+import Colors from '../../constants/Colors';
 
 const CustomDropdown = ({ options, placeholder = "Select", selectedValue, onValueChange }) => {
   const [visible, setVisible] = useState(false);
@@ -21,7 +21,10 @@ const CustomDropdown = ({ options, placeholder = "Select", selectedValue, onValu
         </Text>
       </TouchableOpacity>
       {visible && (
-        <ScrollView style={styles.dropdownList}>
+        <ScrollView
+          style={styles.dropdownList}
+          nestedScrollEnabled={true} // Enable nested scrolling
+        >
           {options.map((option, index) => (
             <TouchableOpacity
               key={index}
@@ -59,14 +62,14 @@ const styles = StyleSheet.create({
   },
   dropdownList: {
     position: 'absolute',
-    top: 65, // adjust based on your dropdown height
+    top: 65, // Adjust based on your dropdown height
     width: '100%',
     backgroundColor: Colors.WHITE,
     borderWidth: 1,
     borderRadius: 15,
     borderColor: Colors.GRAY,
     zIndex: 1000,
-    maxHeight: 200, // maximum height for the list; enables scrolling if items exceed this height
+    maxHeight: 200, // Maximum height for the list; enables scrolling if items exceed this height
   },
   dropdownItem: {
     padding: 15,

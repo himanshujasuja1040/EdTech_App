@@ -1,32 +1,45 @@
 import { router, useNavigation } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  FlatList,
-  Image 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  useWindowDimensions,
 } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { ProgressChart } from 'react-native-chart-kit';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 import Entypo from '@expo/vector-icons/Entypo';
 import ClassesModule from '../components/ClassesModule';
 import { AuthContext } from '../AuthContext/AuthContext';
+
 const MyZone = () => {
   const navigation = useNavigation();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const {overallProgress}=useContext(AuthContext)
-  // Hide header on this screen
+  const { overallProgress, selectedStandardColor } = useContext(AuthContext);
+
+  // Get current dimensions to support responsive design.
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
+
+  // Increase horizontal padding in landscape mode.
+  const containerDynamicStyle = {
+    paddingHorizontal: isPortrait ? 16 : 32,
+  };
+
+  // Compute a dynamic progress chart size (max 150).
+  const progressChartSize = Math.min(width * 0.4, 150);
+
+  // Hide header on this screen.
   useEffect(() => {
-    navigation.setOptions({ 
-      title:'MyZone',
-      headerShown: false 
+    navigation.setOptions({
+      title: 'MyZone',
+      headerShown: false,
     });
   }, [navigation]);
 
@@ -50,38 +63,20 @@ const MyZone = () => {
     fetchUserData();
   }, []);
 
-
-
+  // Fallback data and mapping
   const studentData = {
     name: "Rahul Sharma",
     class: "10th Grade",
-    attendance: "92%",
-    overallProgress: overallProgress, // 75% progress
-    upcomingClasses: [
-      { id: 1, subject: "Mathematics", time: "Mon 4:00 PM", topic: "Algebra" },
-      { id: 2, subject: "Physics", time: "Wed 10:00 AM", topic: "Optics" }
-    ],
-    pendingAssignments: [
-      { id: 1, subject: "Chemistry", dueDate: "2023-08-25", title: "Atomic Structure Worksheet" },
-      { id: 2, subject: "Biology", dueDate: "2023-08-28", title: "Cell Division Report" }
-    ]
+    overallProgress: overallProgress ? overallProgress : 0.80, // e.g., 0.80 for 80% progress
   };
 
-  // Dummy announcements data for the tuition center app
-  const announcements = [
-    { id: 1, title: "New Timetable Released", date: "2023-09-01" },
-    { id: 2, title: "Exam Guidelines Updated", date: "2023-09-05" }
-  ];
-
-  // Map Firebase keys to your UI expected keys if userData exists
   const displayData = userData
     ? {
         name: userData.fullName,
         class: userData.selectedStandard,
-        attendance: studentData.attendance,
-        overallProgress: studentData.overallProgress,
-        upcomingClasses: studentData.upcomingClasses,
-        pendingAssignments: studentData.pendingAssignments,
+        overallProgress: overallProgress ? overallProgress : 0.80,
+        userPhoneNumber: userData.userPhoneNumber,
+        userParentPhoneNumber: userData.userParentPhoneNumber,
       }
     : studentData;
 
@@ -89,176 +84,186 @@ const MyZone = () => {
     backgroundGradientFrom: "#fff",
     backgroundGradientTo: "#fff",
     color: (opacity = 1) => `rgba(42, 77, 105, ${opacity})`,
-    strokeWidth: 2
+    strokeWidth: 2,
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Profile Header */}
-      <View style={styles.profileHeader}>
-        <View style={styles.profileInfo}>
-          <Text style={styles.name}>{displayData.name}</Text>
-          <Text style={styles.class}>{displayData.class}</Text>
-          <View style={styles.attendanceBadge}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.attendanceText}>{displayData.attendance} Attendance</Text>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: selectedStandardColor }]}>
+      <ScrollView style={[styles.container, containerDynamicStyle]}>
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            <Ionicons name="person-circle-outline" size={60} color="#fff" />
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.name}>{displayData.name}</Text>
+            <Text style={styles.class}>{displayData.class}</Text>
+            {displayData.userPhoneNumber && (
+              <Text style={styles.subText}>Phone: {displayData.userPhoneNumber}</Text>
+            )}
+            {displayData.userParentPhoneNumber && (
+              <Text style={styles.subText}>Parent: {displayData.userParentPhoneNumber}</Text>
+            )}
           </View>
         </View>
-      </View>
 
-      {/* Progress Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Learning Progress</Text>
-        <View style={styles.progressContainer}>
-          {/* Uncomment and configure ProgressChart if needed */}
-          <ProgressChart
-            data={{ data: [displayData.overallProgress] }}
-            width={150}
-            height={150}
-            strokeWidth={12}
-            radius={50}
-            chartConfig={chartConfig}
-            hideLegend
-          />
-          <View style={styles.progressTextContainer}>
-            <Text style={styles.progressPercent}>
-              {Math.floor(displayData.overallProgress * 100)}%
+        {/* Progress Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Learning Progress</Text>
+          <View style={styles.progressContainer}>
+            <ProgressChart
+              data={{ data: [displayData.overallProgress] }}
+              width={progressChartSize}
+              height={progressChartSize}
+              strokeWidth={12}
+              radius={50}
+              chartConfig={chartConfig}
+              hideLegend
+            />
+            <View style={styles.progressTextContainer}>
+              <Text style={styles.progressPercent}>
+                {Math.floor(displayData.overallProgress * 100)}%
+              </Text>
+              <Text style={styles.progressLabel}>Overall Progress</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Access Cards */}
+        <View style={styles.cardRow}>
+          <TouchableOpacity style={styles.card} onPress={() => router.push('/components/Schedule')}>
+            <MaterialIcons name="schedule" size={32} color="#2A4D69" />
+            <Text style={styles.cardText}>Class Schedule</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.card} onPress={() => router.push('/subscreens/AssigmentNote')}>
+            <Ionicons name="book" size={32} color="#2A4D69" />
+            <Text style={styles.cardText}>Study Materials</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Daily Study Tip Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Daily Study Tip</Text>
+          <View style={styles.tipCard}>
+            <Text style={styles.tipText}>
+              Radhe Radhe Baccho, Parents ko proud feel krana hai – isse badiya koi tip hi nahi!
             </Text>
-            <Text style={styles.progressLabel}>Overall Progress</Text>
           </View>
         </View>
-      </View>
 
-      {/* Quick Access Cards */}
-      <View style={styles.cardRow}>
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/components/Schedule')}>
-          <MaterialIcons name="schedule" size={32} color="#2A4D69" />
-          <Text style={styles.cardText}>Class Schedule</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/subscreens/AssigmentNote')}>
-          <Ionicons name="book" size={32} color="#2A4D69" />
-          <Text style={styles.cardText}>Study Materials</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Daily Study Tip Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Daily Study Tip</Text>
-        <View style={styles.tipCard}>
-          <Text style={styles.tipText}>
-            Radhe Radhe Baccho , Parents ko Proud feel krana hai , isse badiya koi tip hai hi nahi
-          </Text>
+        {/* Upcoming Classes Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Upcoming Classes</Text>
+          <ClassesModule />
         </View>
-      </View>
 
-      {/* Upcoming Classes */}
-      <View>
-      <ClassesModule />
-      </View>
-      
-
-      {/* Bottom Button Row */}
-      <View style={styles.iconRow}>
-        <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Profile")}>
-          <Ionicons name="settings" size={24} color={Colors.PRIMARY} />
-          <Text style={styles.iconText}>Profile</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Attendance")}>
-          <Entypo name="new-message" size={24} color={Colors.PRIMARY} />
-          <Text style={styles.iconText}>Attendence</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconCard} onPress={()=>router.push("/components/Schedule")}>
-          <Ionicons name="time" size={24} color={Colors.PRIMARY} />
-          <Text style={styles.iconText}>Schedule</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        {/* Bottom Button Row */}
+        <View style={styles.iconRow}>
+          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Profile")}>
+            <Ionicons name="settings" size={24} color="#2A4D69" />
+            <Text style={styles.iconText}>Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Attendance")}>
+            <Entypo name="new-message" size={24} color="#2A4D69" />
+            <Text style={styles.iconText}>Attendance</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Schedule")}>
+            <Ionicons name="time" size={24} color="#2A4D69" />
+            <Text style={styles.iconText}>Schedule</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    padding: 16,
+    paddingVertical: 16,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loadingText: {
+    fontSize: 18,
+    color: '#333',
+  },
   profileHeader: {
+    fontFamily: 'outfit',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatarContainer: {
+    backgroundColor: '#2A4D69',
+    padding: 6,
+    borderRadius: 50,
+    marginRight: 16,
   },
   profileInfo: {
     flex: 1,
   },
   name: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.PRIMARY,
-    marginBottom: 4,
+    fontFamily: 'outfit',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2A4D69',
   },
   class: {
+    fontFamily: 'outfit-medium',
     fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
+    color: '#555',
+    marginVertical: 2,
   },
-  attendanceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9',
-    padding: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  attendanceText: {
-    color: '#4CAF50',
-    marginLeft: 4,
+  subText: {
+    fontFamily: 'outfit',
     fontSize: 14,
+    color: '#777',
   },
   section: {
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: Colors.PRIMARY,
-  },
-  seeAll: {
-    color: '#4B86B4',
-    fontSize: 14,
+    color: '#2A4D69',
+    marginBottom: 12,
   },
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
   },
   progressTextContainer: {
     marginLeft: 25,
@@ -270,9 +275,8 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 16,
-    color: '#666',
+    color: '#777',
   },
-  // Quick access cards (cardRow and card)
   cardRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -281,158 +285,58 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 10,
     width: '48%',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#2A4D69',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   cardText: {
     marginTop: 8,
     color: '#2A4D69',
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
   },
-  // Class item styles
-  classItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  classIcon: {
-    backgroundColor: '#e8f1f8',
-    padding: 10,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  classInfo: {
-    flex: 1,
-  },
-  classSubject: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  classTime: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  classTopic: {
-    fontSize: 14,
-    color: '#4B86B4',
-    marginTop: 2,
-  },
-  // Assignment item styles
-  assignmentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  assignmentIcon: {
-    backgroundColor: '#e8f1f8',
-    padding: 10,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  assignmentInfo: {
-    flex: 1,
-  },
-  assignmentSubject: {
-    fontSize: 14,
-    color: '#666',
-  },
-  assignmentTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginVertical: 4,
-  },
-  assignmentDue: {
-    fontSize: 14,
-    color: '#ff6b6b',
-  },
-  // Tip card styles
   tipCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#F3F8FF',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   tipText: {
     fontSize: 16,
-    color: '#333',
-    fontFamily: 'outfit-regular',
+    color: '#2A4D69',
+    lineHeight: 22,
+    fontFamily: 'outfit',
   },
-  // Announcement item styles
-  announcementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  announcementIcon: {
-    backgroundColor: '#e8f1f8',
-    padding: 10,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  announcementInfo: {
-    flex: 1,
-  },
-  announcementTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  announcementDate: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  // Bottom row icon buttons
   iconRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     marginVertical: 20,
-    // paddingHorizontal: 10,
   },
   iconCard: {
     backgroundColor: '#fff',
-    padding: 10,
-    marginHorizontal: 3,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: '#2A4D69',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 2,
-
-    // Elevation for Android
-    elevation: 1,
+    elevation: 2,
   },
   iconText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+    color: '#2A4D69',
+    fontWeight: '600',
   },
 });
 

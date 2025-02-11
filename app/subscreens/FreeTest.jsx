@@ -9,7 +9,8 @@ import {
   Dimensions,
   Alert,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  SafeAreaView
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
@@ -24,7 +25,7 @@ const FreeTest = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
   const navigation = useNavigation();
 
   // Search states for filtering tests by title and subject
@@ -123,27 +124,27 @@ const FreeTest = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Tests...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error && tests.length === 0) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity onPress={fetchTests} style={styles.retryButton}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={filteredTests}
         keyExtractor={keyExtractor}
@@ -191,7 +192,7 @@ const FreeTest = () => {
         maxToRenderPerBatch={5}
         removeClippedSubviews={true}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 

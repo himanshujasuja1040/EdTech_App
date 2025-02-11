@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useContext, useMemo, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   FlatList,
@@ -10,7 +11,8 @@ import {
   Alert,
   Dimensions,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
@@ -18,21 +20,22 @@ import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const Books = () => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true); // Show loading indicator until data is fetched
   const [error, setError] = useState(null);
-  const { selectedStandard } = useContext(AuthContext);
-    const [refreshing, setRefreshing] = useState(false);
-  
+  const { selectedStandard ,selectedStandardColor} = useContext(AuthContext);
+  const [refreshing, setRefreshing] = useState(false);
+
   const navigation = useNavigation();
 
   // Search states for filtering books by title, detail, and subject
   const [searchTitle, setSearchTitle] = useState('');
   const [searchDetail, setSearchDetail] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
+
+  // Use window dimensions for responsive adjustments
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
 
   useEffect(() => {
     navigation.setOptions({
@@ -41,58 +44,55 @@ const Books = () => {
   }, [navigation]);
 
   // Fetch books from the "Books" collection
-    const fetchBooks = useCallback(async () => {
-      try {
-        setLoading(true)
-        const booksCollectionRef = collection(db, 'Books');
-        const querySnapshot = await getDocs(booksCollectionRef);
-        const fetchedBooks = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+  const fetchBooks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const booksCollectionRef = collection(db, 'Books');
+      const querySnapshot = await getDocs(booksCollectionRef);
+      const fetchedBooks = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        setBooks(fetchedBooks);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching books:', err);
-        setError('Failed to load books. Please try again later.');
-      } finally {
-        setLoading(false);
-        setRefreshing(false)
-      }
-    },[]);
-    
-  
-    useEffect(() => {
-      fetchBooks();
-    }, [fetchBooks]);
+      setBooks(fetchedBooks);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching books:', err);
+      setError('Failed to load books. Please try again later.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-   const handleRefresh = useCallback(() => {
-      setRefreshing(true);
-      fetchBooks();
-    }, [fetchBooks]);
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
 
-  // Filter books based on selected standard and search queries
-  const filteredBooks = useMemo(
-    () =>
-      books.filter(book => {
-        const matchesStandard =
-          book.class.toLowerCase() === selectedStandard.toLowerCase();
-        const matchesTitle = book.title
-          .toLowerCase()
-          .includes(searchTitle.toLowerCase());
-        const matchesDetail = book.detail
-          .toLowerCase()
-          .includes(searchDetail.toLowerCase());
-        const matchesSubject = book.subject
-          .toLowerCase()
-          .includes(searchSubject.toLowerCase());
-        return matchesStandard && matchesTitle && matchesDetail && matchesSubject;
-      }),
-    [books, selectedStandard, searchTitle, searchDetail, searchSubject]
-  );
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchBooks();
+  }, [fetchBooks]);
 
-  // Open the book link in a webview or external browser
+  // Filter books based on selected standard and search queries.
+  const filteredBooks = useMemo(() => {
+    return books.filter((book) => {
+      const matchesStandard =
+        book.class.toLowerCase() === selectedStandard.toLowerCase();
+      const matchesTitle = book.title
+        .toLowerCase()
+        .includes(searchTitle.toLowerCase());
+      const matchesDetail = book.detail
+        .toLowerCase()
+        .includes(searchDetail.toLowerCase());
+      const matchesSubject = book.subject
+        .toLowerCase()
+        .includes(searchSubject.toLowerCase());
+      return matchesStandard && matchesTitle && matchesDetail && matchesSubject;
+    });
+  }, [books, selectedStandard, searchTitle, searchDetail, searchSubject]);
+
+  // Open the book link in a webview or external browser.
   const handleOpenBook = useCallback((url) => {
     if (!url) {
       Alert.alert('Invalid Link', 'This book is not currently available');
@@ -102,10 +102,9 @@ const Books = () => {
       pathname: '/helper/WebViewScreen',
       params: { url },
     });
-    // Alternatively, you can use navigation.navigate('WebViewScreen', { url });
   }, []);
 
-  // Render each book item in a card-like horizontal layout
+  // Render each book item in a card-like layout.
   const BookItem = useCallback(
     ({ item }) => (
       <View style={styles.card}>
@@ -136,13 +135,13 @@ const Books = () => {
             <Text style={styles.detailText} numberOfLines={3}>
               {item.detail}
             </Text>
-              <TouchableOpacity
-                style={styles.openButton}
-                onPress={() => handleOpenBook(item.drivelink)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.openButtonText}>📖 Open Book</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.openButton}
+              onPress={() => handleOpenBook(item.drivelink)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.openButtonText}>📖 Open Book</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -150,28 +149,28 @@ const Books = () => {
     [handleOpenBook]
   );
 
-  const keyExtractor = useCallback(item => item.id, []);
+  const keyExtractor = useCallback((item) => item.id, []);
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Books...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.safeContainer,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={filteredBooks}
         keyExtractor={keyExtractor}
@@ -180,9 +179,10 @@ const Books = () => {
           <View>
             {/* Header */}
             <View style={styles.headerContainer}>
-              <Text style={styles.header}>Exclusive Books : {selectedStandard}</Text>
+              <Text style={styles.header}>
+                Exclusive Books : {selectedStandard}
+              </Text>
             </View>
-
             {/* Search Bars */}
             <View style={styles.searchContainer}>
               <TextInput
@@ -223,20 +223,24 @@ const Books = () => {
         maxToRenderPerBatch={5}
         windowSize={5}
         refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
         removeClippedSubviews={true}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#f0f4f8',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f0f4f8',
     paddingTop: 10,
-    paddingBottom:40,
+    paddingBottom: 40,
   },
   headerContainer: {
     marginHorizontal: 20,
@@ -360,7 +364,6 @@ const styles = StyleSheet.create({
     color: '#D32F2F',
     textAlign: 'center',
     fontSize: 16,
-    paddingHorizontal: 20,
   },
   emptyContainer: {
     flex: 1,

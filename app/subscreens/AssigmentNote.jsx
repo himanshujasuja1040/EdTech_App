@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  Alert, 
-  Dimensions, 
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
   ActivityIndicator,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { db } from "../../configs/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
@@ -17,10 +18,8 @@ import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const AssignmentNote = React.memo(() => {
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
   const [assignmentNotes, setAssignmentNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,6 +29,9 @@ const AssignmentNote = React.memo(() => {
   // Search states for filtering by Title and Subject
   const [searchTitle, setSearchTitle] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
+
+  // Get current screen dimensions for responsive styling.
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
 
   useEffect(() => {
     navigation.setOptions({
@@ -78,20 +80,23 @@ const AssignmentNote = React.memo(() => {
   }, []);
 
   // Filter notes based on selected standard and search inputs.
-const filteredNotes = useMemo(()=>{
-  return assignmentNotes.filter(
-    (note) =>{
-    const matchesStandard = note.class.toLowerCase() === selectedStandard.toLowerCase() 
-    const matchesTitle = note.title.toLowerCase().includes(searchTitle.toLowerCase()) ;
-    const matchesSubject = note.subject.toLowerCase().includes(searchSubject.toLowerCase());
-    return matchesStandard && matchesTitle && matchesSubject;
-  })
-},[assignmentNotes, selectedStandard, searchTitle, searchSubject])
+  const filteredNotes = useMemo(() => {
+    return assignmentNotes.filter((note) => {
+      const matchesStandard =
+        note.class.toLowerCase() === selectedStandard.toLowerCase();
+      const matchesTitle = note.title
+        .toLowerCase()
+        .includes(searchTitle.toLowerCase());
+      const matchesSubject = note.subject
+        .toLowerCase()
+        .includes(searchSubject.toLowerCase());
+      return matchesStandard && matchesTitle && matchesSubject;
+    });
+  }, [assignmentNotes, selectedStandard, searchTitle, searchSubject]);
 
-  const RenderNoteItem = useCallback(({ item }) => (
-      <View
-        style={styles.card}
-      >
+  const RenderNoteItem = useCallback(
+    ({ item }) => (
+      <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.title} numberOfLines={2}>
             {item.title}
@@ -109,7 +114,10 @@ const filteredNotes = useMemo(()=>{
         </View>
 
         {item.drivelink ? (
-          <TouchableOpacity style={styles.linkContainer}         onPress={() => item.drivelink && openDriveLink(item.drivelink)}>
+          <TouchableOpacity
+            style={styles.linkContainer}
+            onPress={() => openDriveLink(item.drivelink)}
+          >
             <Text style={styles.linkText}>🔗 Open Document</Text>
           </TouchableOpacity>
         ) : (
@@ -122,53 +130,63 @@ const filteredNotes = useMemo(()=>{
 
   const keyExtractor = useCallback((item) => item.id, []);
 
-
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Notes...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error && assignmentNotes.length === 0) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+        <Text style={{ fontSize: 48, color: "#D32F2F" }}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={filteredNotes}
-        keyExtractor={keyExtractor}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => <RenderNoteItem item={item} />}
-        ListHeaderComponent={   
-        <View>
-        <View style={styles.headerContainer}>
-        <Text style={styles.header}>{selectedStandard} Study Materials</Text>
-      </View>
-      <View style={[styles.searchContainer]}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by Title"
-          placeholderTextColor="#888"
-          value={searchTitle}
-          onChangeText={setSearchTitle}
-        />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by Subject"
-          placeholderTextColor="#888"
-          value={searchSubject}
-          onChangeText={setSearchSubject}
-        />
-      </View></View>}
-        // The search bar is the second child in the header (index 1) and will be sticky.
+        ListHeaderComponent={
+          <View>
+            <View style={styles.headerContainer}>
+              <Text style={styles.header}>
+                {selectedStandard} Study Materials
+              </Text>
+            </View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Title"
+                placeholderTextColor="#888"
+                value={searchTitle}
+                onChangeText={setSearchTitle}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by Subject"
+                placeholderTextColor="#888"
+                value={searchSubject}
+                onChangeText={setSearchSubject}
+              />
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyIcon}>📭</Text>
+                    <Text style={styles.emptyText}>
+                      No Assigment found for {selectedStandard} Matching Your SEarch 
+                    </Text>
+                  </View>
+                }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -179,7 +197,7 @@ const filteredNotes = useMemo(()=>{
         maxToRenderPerBatch={5}
         removeClippedSubviews={true}
       />
-    </View>
+    </SafeAreaView>
   );
 });
 
@@ -189,7 +207,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f4f8',
     paddingTop: 10,
     paddingBottom: 40,
-
   },
   headerContainer: {
     paddingHorizontal: 24,
@@ -211,9 +228,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 24,
     paddingVertical: 10,
-  },
-  stickyHeader: {
-    zIndex: 1,
   },
   searchInput: {
     borderWidth: 1,
@@ -300,13 +314,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
     color: '#4CAF50',
     fontSize: 16,
-  },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    fontWeight: '500',
   },
   errorText: {
     color: '#D32F2F',
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 48,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: '#636E72',
     textAlign: 'center',
     fontSize: 16,
   },
@@ -315,4 +341,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AssignmentNote;
+export default React.memo(AssignmentNote);

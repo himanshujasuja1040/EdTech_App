@@ -1,6 +1,6 @@
 import { router, useNavigation } from 'expo-router';
 import React, { useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet,BackHandler  } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 import { AuthContext } from "../AuthContext/AuthContext";
@@ -17,6 +17,22 @@ const LoadingPage = () => {
       title: '',
     });
   }, [navigation]);
+
+  
+useEffect(() => {
+  const backAction = () => {
+    // Optionally, show an alert or do nothing
+    // Returning true prevents the default back action
+    return true;
+  };
+
+  const backHandler = BackHandler.addEventListener(
+    'hardwareBackPress',
+    backAction
+  );
+
+  return () => backHandler.remove();
+}, []);
 
   // Memoized fetch function to get user data only once.
   const fetchUserDataFromLP = useCallback(async () => {
@@ -58,9 +74,11 @@ const LoadingPage = () => {
       setUserPhoneNumber(userDataFromLP?.userPhoneNumber)
       setUserParentPhoneNumber(userDataFromLP?.userParentPhoneNumber)
       console.log(selectedStandard)
-      router.replace({
-        pathname: '/NoAccess',
-        params: { userDataFromLP: memoizedUserData },
+      navigation.reset({
+        index: 0,
+        routes: [
+          { name: 'NoAccess', params: { userDataFromLP: memoizedUserData } },
+        ],
       });
     }
   }, [memoizedUserData, setUserData, userDataFromLP]);

@@ -8,6 +8,7 @@ import {
   Dimensions,
   TextInput,
   RefreshControl,
+  SafeAreaView,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
@@ -18,7 +19,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ExperimentVideo = () => {
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -123,24 +124,24 @@ const keyExtractor = useCallback(item => item.id, []);
 
 if (loading) {
   return (
-    <View style={styles.centerContainer}>
+    <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
       <ActivityIndicator size="large" color="#4CAF50" />
       <Text style={styles.loadingText}>Loading Experiments...</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
 if (error) {
   return (
-    <View style={styles.centerContainer}>
+    <SafeAreaView style={[styles.centerContainer,,{backgroundColor:selectedStandardColor}]}>
       <Text style={styles.errorIcon}>⚠️</Text>
       <Text style={styles.errorText}>{error}</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
 return (
-      <View style={styles.container}>
+      <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
 
   <FlatList
     data={filteredVideos}
@@ -187,7 +188,7 @@ return (
     maxToRenderPerBatch={5}
     removeClippedSubviews={true}
   />
-  </View>
+  </SafeAreaView>
 );
 };
 

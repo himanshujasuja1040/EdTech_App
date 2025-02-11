@@ -9,7 +9,8 @@ import {
   Dimensions, 
   Alert,
   TextInput,
-  RefreshControl
+  RefreshControl,
+  SafeAreaView
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
@@ -20,7 +21,7 @@ import { router } from 'expo-router';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const PreviousYearPaper = () => {
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -160,27 +161,27 @@ const PreviousYearPaper = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Papers...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity onPress={fetchPapers} style={styles.retryButton}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={filteredPapers}
         keyExtractor={item => item.id}
@@ -233,21 +234,19 @@ const PreviousYearPaper = () => {
         }
         removeClippedSubviews={true}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
     paddingTop: 10,
     paddingBottom:40,
   },
   headerWrapper: {
     paddingTop: 16,
     paddingBottom: 16,
-    backgroundColor: '#F8F9FA',
   },
   headerContainer: {
     paddingHorizontal: 20,

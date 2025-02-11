@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   FlatList,
@@ -8,13 +9,18 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
-import { Colors } from '../../constants/Colors';
+import { AuthContext } from '../AuthContext/AuthContext';
 
 const Doubts = () => {
+  const {selectedStandardColor}=useContext(AuthContext)
   const navigation = useNavigation();
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
+
   const [messages, setMessages] = useState([
     { id: '1', text: 'Hello! How can I help you today?', sender: 'bot' },
   ]);
@@ -39,7 +45,7 @@ const Doubts = () => {
     setTimeout(() => {
       const botMessage = {
         id: Date.now().toString() + 'bot',
-        text: 'Radhe Radhe Baccho , abhi karya pragati pr hai',
+        text: 'Radhe Radhe Baccho, abhi karya pragati pr hai',
         sender: 'bot',
       };
       setMessages((prev) => [...prev, botMessage]);
@@ -69,28 +75,30 @@ const Doubts = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Chat Messages */}
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessage}
-        contentContainerStyle={styles.messagesContainer}
-        style={styles.messagesList}
-      />
+    <SafeAreaView style={[styles.safeContainer,{backgroundColor:selectedStandardColor}]}>
+      <View style={styles.contentContainer}>
+        {/* Chat Messages */}
+        <FlatList
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.messagesContainer}
+          style={styles.messagesList}
+        // Optionally, you could adjust padding/margin based on orientation here.
+        />
+      </View>
 
       {/* Input Area */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.inputWrapper}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
       >
         <View style={styles.inputArea}>
           <TextInput
-          
             style={styles.textInput}
             placeholder="Type your doubt..."
             placeholderTextColor="#888"
-            
             value={inputText}
             onChangeText={setInputText}
           />
@@ -102,28 +110,31 @@ const Doubts = () => {
             <Ionicons
               name={loading ? 'hourglass-outline' : 'send'}
               size={24}
-              color={Colors.WHITE}
+              color='fff'
             />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default Doubts;
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: '#f0f2f5',
+  },
+  contentContainer: {
+    flex: 1,
   },
   messagesList: {
     flex: 1,
   },
   messagesContainer: {
     padding: 15,
-    paddingBottom: 70,
+    paddingBottom: 100, // Extra bottom padding so messages don't get hidden by the input area
   },
   messageContainer: {
     maxWidth: '80%',
@@ -175,7 +186,7 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     marginLeft: 8,
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: '#fff',
     width: 40,
     height: 40,
     borderRadius: 20,

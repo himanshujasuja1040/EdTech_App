@@ -13,9 +13,10 @@ import { db } from '../../configs/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
-import { Colors } from "../../constants/Colors";
 import moment from "moment-timezone";
 import { router } from 'expo-router';
+import  Colors  from '../../constants/Colors';
+
 
 // Helper function to format a Firestore Timestamp to "hh:mm AM/PM"
 const formatTime = (timestamp) => {
@@ -27,6 +28,7 @@ const formatTime = (timestamp) => {
     hour12: true,
   });
 };
+
 
 const ClassesModule = () => {
   const { selectedStandard } = useContext(AuthContext);
@@ -169,7 +171,6 @@ const ClassesModule = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   sectionContainer: {
     backgroundColor: Colors.WHITE,

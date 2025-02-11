@@ -10,17 +10,18 @@ import {
   Image,
   TextInput,
   Share,
-  ScrollView
+  ScrollView,
+  SafeAreaView
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
-import { Colors } from "../../constants/Colors"
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const PremiumCourse = () => {
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard ,selectedStandardColor} = useContext(AuthContext);
   const [premiumCourses, setPremiumCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -124,80 +125,80 @@ const PremiumCourse = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Courses...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  
 
-    return (
-      <View style={styles.container}>
-        <FlatList
-          data={filteredCourses}
-          renderItem={renderCourseItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={
-            <>
-              {/* Header */}
-              <View style={styles.headerContainer}>
-                <Text style={styles.header}>Exclusive Content : {selectedStandard}</Text>
-              </View>
-    
-              {/* Search Bar */}
-              <View style={styles.searchContainer}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search Courses..."
-                  placeholderTextColor="#888"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-            </>
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📚</Text>
-              <Text style={styles.emptyText}>
-                No premium courses available for {selectedStandard}
-              </Text>
+
+  return (
+    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
+      <FlatList
+        data={filteredCourses}
+        renderItem={renderCourseItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <>
+            {/* Header */}
+            <View style={styles.headerContainer}>
+              <Text style={styles.header}>Exclusive Content : {selectedStandard}</Text>
             </View>
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
-    );
-    
-    
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search Courses..."
+                placeholderTextColor="#888"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📚</Text>
+            <Text style={styles.emptyText}>
+              No premium courses available for {selectedStandard}
+            </Text>
+          </View>
+        }
+        showsVerticalScrollIndicator={false}
+      />
+    </SafeAreaView>
+  );
+
+
 };
 
 const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    height:'100%',
+    height: '100%',
     backgroundColor: '#f0f4f8',
     paddingBottom: 30,
-    paddingTop:10,
+    paddingTop: 10,
   },
   headerContainer: {
     marginHorizontal: 20,
     marginBottom: 16,
   },
-  header: { 
+  header: {
     fontSize: 22,
     fontWeight: '700',
     color: '#333',

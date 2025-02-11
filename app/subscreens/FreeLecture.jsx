@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   TextInput,
   RefreshControl,
+  SafeAreaView,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
@@ -28,7 +29,7 @@ const getYoutubeId = (url) => {
 };
 
 const FreeLecture = () => {
-  const { selectedStandard } = useContext(AuthContext);
+  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
   const [lectures, setLectures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -145,27 +146,27 @@ const FreeLecture = () => {
 
   if (loading) {
     return (
-      <View style={styles.centeredContainer}>
+      <SafeAreaView style={[styles.centeredContainer,{backgroundColor:selectedStandardColor}]}>
         <ActivityIndicator size="large" color="#1e90ff" />
         <Text style={styles.loadingText}>Loading Lectures...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centeredContainer}>
+      <SafeAreaView style={[styles.centeredContainer,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity onPress={fetchLectures} style={styles.retryButton}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={filteredLectures}
         renderItem={renderLecture}
@@ -210,7 +211,7 @@ const FreeLecture = () => {
                 windowSize={10}
                 removeClippedSubviews={true}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 

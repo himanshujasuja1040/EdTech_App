@@ -1,31 +1,50 @@
-import React, { useContext, useState, useEffect } from 'react';
+/**
+ * SECURITY CONSIDERATION:
+ * AsyncStorage is not a secure storage mechanism for sensitive data (e.g., tokens, personal info).
+ * For sensitive information, consider using expo-secure-store or another secure storage solution.
+ */
+
+import React, { useContext, useState } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import {
   DrawerContentScrollView,
   DrawerItemList,
 } from '@react-navigation/drawer';
 import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { router, useNavigation } from 'expo-router';
-import { Colors } from '../../constants/Colors';
+import { router } from 'expo-router';
+import  Colors  from '../../constants/Colors';
 import { AuthContext } from '../AuthContext/AuthContext';
-import { doc, getDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../../configs/firebaseConfig';
+import { auth } from '../../configs/firebaseConfig';
 import ClassesModule from './ClassesModule';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CustomDrawerContent = (props) => {
-  const { selectedStandard ,notifications,userData,userParentPhoneNumber,userPhoneNumber} = useContext(AuthContext);
 
+  const {
+    selectedStandard,
+    notifications,
+    userData,
+    userParentPhoneNumber,
+    userPhoneNumber,
+    selectedStandardColor,
+  } = useContext(AuthContext);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState(null);
 
-  // Quick logout function
+  // Get device dimensions and determine orientation.
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
+
+  // Logout function with loading state and error feedback.
   const handleLogout = async () => {
     Alert.alert(
       'Log Out',
@@ -36,10 +55,21 @@ const CustomDrawerContent = (props) => {
           text: 'Log Out',
           onPress: async () => {
             try {
+              setIsLoggingOut(true);
+              console.log('LOGGED OUT ');
               await auth.signOut();
+
+              // Remove the stored user data from AsyncStorage.
+              await AsyncStorage.removeItem('user');
+
+              // Navigate back to the login or home screen.
               router.replace('/');
             } catch (error) {
+              console.error('Logout Error:', error);
+              setLogoutError(error.message);
               Alert.alert('Logout Error', error.message);
+            } finally {
+              setIsLoggingOut(false);
             }
           },
         },
@@ -47,13 +77,18 @@ const CustomDrawerContent = (props) => {
     );
   };
 
-
-
   return (
-    <View style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.safeContainer,
+        { paddingHorizontal: isPortrait ? 1 : 2 },{backgroundColor:selectedStandardColor}
+      ]}
+    >
       <DrawerContentScrollView {...props}>
         <View style={styles.quickActions}>
-          <Text style={{ color: '#fff', fontFamily:'outfit' }}>RADHE RADHE </Text>
+          <Text style={{ color: '#fff', fontFamily: 'outfit' }}>
+            RADHE RADHE
+          </Text>
         </View>
         {/* Profile Section */}
         <View style={styles.profileContainer}>
@@ -61,14 +96,18 @@ const CustomDrawerContent = (props) => {
             {userData ? userData.fullName : 'John'}
           </Text>
           <Text style={styles.userEmail}>
-            Email : {userData ? userData.email : 'john@example.com'}
+            Email: {userData ? userData.email : 'john@example.com'}
           </Text>
           <View style={styles.profileStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>Your Contact : {userPhoneNumber}</Text>
+              <Text style={styles.statValue}>
+                Your Contact: {userPhoneNumber}
+              </Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>Parent's Contact : {userParentPhoneNumber}</Text>
+              <Text style={styles.statValue}>
+                Parent's Contact: {userParentPhoneNumber}
+              </Text>
             </View>
           </View>
         </View>
@@ -80,10 +119,12 @@ const CustomDrawerContent = (props) => {
             onPress={() => router.push('/components/Notification')}
           >
             <Ionicons name="notifications" size={24} color="#fff" />
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{notifications.length}</Text>
-              </View>
-            <Text style={{ color: '#fff', marginTop: 4 }}>Notification</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{notifications.length}</Text>
+            </View>
+            <Text style={{ color: '#fff', marginTop: 4 }}>
+              Notification
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
@@ -105,17 +146,7 @@ const CustomDrawerContent = (props) => {
           style={styles.actionButton}
           onPress={() => router.push('/components/CategorySelection')}
         >
-          <Text
-            style={{
-              backgroundColor: Colors.PRIMARY,
-              color: Colors.WHITE,
-              textAlign: 'center',
-              paddingVertical: 10,
-              paddingHorizontal: 18,
-              borderRadius: 10,
-              fontFamily: 'outfit',
-            }}
-          >
+          <Text style={styles.standardButton}>
             Standard - {selectedStandard ? selectedStandard : 'Select'}
           </Text>
         </TouchableOpacity>
@@ -131,19 +162,35 @@ const CustomDrawerContent = (props) => {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <FontAwesome name="power-off" size={20} color="#fff" />
-          <Text style={styles.logoutText}>Log Out</Text>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          disabled={isLoggingOut}
+        >
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <FontAwesome name="power-off" size={20} color="#fff" />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </>
+          )}
         </TouchableOpacity>
-        <Text style={styles.versionText}>Abhisekh Bhaiya Classes</Text>
-        <Text style={styles.versionText}>Contact : 9268012970</Text>
-
+        {logoutError ? (
+          <Text style={styles.errorText}>Error: {logoutError}</Text>
+        ) : null}
+        <Text style={styles.versionText}>Abhishek Bhaiya Classes</Text>
+        <Text style={styles.versionText}>Contact: 9268012970</Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: Colors.WHITE,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.WHITE,
@@ -151,7 +198,7 @@ const styles = StyleSheet.create({
   profileContainer: {
     padding: 15,
     backgroundColor: Colors.WHITE,
-    marginTop:15,
+    marginTop: 15,
     marginBottom: 15,
     borderWidth: 1,
     borderRadius: 15,
@@ -166,18 +213,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.PRIMARY,
     marginBottom: 2,
-
   },
   profileStats: {
-    flexDirection: 'col',
+    flexDirection: 'column',
     justifyContent: 'space-around',
   },
-  statValue: {
-    fontSize: 14,
-    marginBottom: 2,
-    color: Colors.PRIMARY,
+  statItem: {
+    marginBottom: 4,
   },
-  statLabel: {
+  statValue: {
     fontSize: 14,
     color: Colors.PRIMARY,
   },
@@ -187,6 +231,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: Colors.PRIMARY,
     borderRadius: 13,
+    marginHorizontal: 10,
+    marginVertical: 5,
   },
   actionButton: {
     padding: 10,
@@ -207,6 +253,15 @@ const styles = StyleSheet.create({
   badgeText: {
     color: '#fff',
     fontSize: 12,
+  },
+  standardButton: {
+    backgroundColor: Colors.PRIMARY,
+    color: Colors.WHITE,
+    textAlign: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    fontFamily: 'outfit',
   },
   menuContainer: {
     marginTop: 10,
@@ -231,16 +286,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   versionText: {
-    fontFamily:'outfit',
+    fontFamily: 'outfit',
     textAlign: 'center',
     color: '#666',
     fontSize: 12,
   },
-  // Additional styles for DrawerItemList can be added here if needed.
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 5,
   },
 });
 

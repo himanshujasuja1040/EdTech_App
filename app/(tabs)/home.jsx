@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useContext } from 'react';
+import React, { useEffect, useMemo, useCallback, useContext, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -8,10 +8,8 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
-import { Colors } from '../../constants/Colors';
 import { router, useNavigation } from 'expo-router';
 import { AuthContext } from '../AuthContext/AuthContext';
-
 // A simple loading component
 const LoadingScreen = () => (
   <View style={styles.loadingContainer}>
@@ -20,14 +18,19 @@ const LoadingScreen = () => (
 );
 
 const Home = () => {
-  const { selectedStandard, name, userData } = useContext(AuthContext);
+  const { selectedStandard, name, selectedStandardColor } = useContext(AuthContext);
   const { width, height } = useWindowDimensions();
+
   const navigation = useNavigation();
 
   // Hide the header
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
+
+  // Determine orientation
+  const isPortrait = height >= width;
+
   // --- Memoize static data objects ---
   const commonItems = useMemo(() => [
     { title: 'Premium Courses', icon: '📘' },
@@ -38,7 +41,6 @@ const Home = () => {
     { title: 'Previous Years Paper', icon: '📄' },
     { title: 'Experiments Videos', icon: '🧪' },
     { title: 'Quiz', icon: '❓' },
-
   ], []);
 
   const courses = useMemo(() => ({
@@ -67,7 +69,11 @@ const Home = () => {
   // --- Compute layout values ---
   const containerMaxWidth = 800;
   const containerWidth = Math.min(width, containerMaxWidth);
-  const cardWidth = containerWidth * 0.44;
+
+  // Adjust the number of columns based on orientation:
+  const numColumns = isPortrait ? 2 : 3;
+  // For two columns, we use ~44% of the container width; for three columns, a smaller fraction.
+  const cardWidth = isPortrait ? containerWidth * 0.44 : containerWidth * 0.28;
   const iconFontSize = containerWidth * 0.12;
   const cardTitleFontSize = containerWidth * 0.04;
   const greetingFontSize = containerWidth * 0.045;
@@ -84,6 +90,24 @@ const Home = () => {
     </TouchableOpacity>
   ), [cardWidth, height, iconFontSize, cardTitleFontSize, categoryDbMapping]);
 
+  // --- Memoize header container style based on orientation ---
+  const headerContainerStyle = useMemo(() => {
+    if (isPortrait) {
+      return [styles.headerContainer, { paddingVertical: height * 0.02 }];
+    } else {
+      return [
+        styles.headerContainer,
+        {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingVertical: height * 0.02,
+          paddingHorizontal: 20,
+        }
+      ];
+    }
+  }, [isPortrait, height]);
+
   // --- Memoize the main content ---
   const content = useMemo(() => {
     if (!name || !selectedStandard) {
@@ -91,10 +115,10 @@ const Home = () => {
     }
 
     return (
-      <SafeAreaView style={styles.safeContainer}>
+      <SafeAreaView style={[styles.safeContainer,{backgroundColor:selectedStandardColor}]}>
         <View style={[styles.container, { width: containerWidth }]}>
           {/* Header */}
-          <View style={[styles.headerContainer, { paddingVertical: height * 0.02 }]}>
+          <View style={headerContainerStyle}>
             <Text style={[styles.greeting, { fontSize: greetingFontSize }]}>
               Radhe Radhe {name}
             </Text>
@@ -108,8 +132,8 @@ const Home = () => {
             data={courses[selectedStandard] || []}
             renderItem={renderCourseCard}
             keyExtractor={(item) => item.title}
-            numColumns={2}
-            columnWrapperStyle={styles.row}
+            numColumns={numColumns}
+            columnWrapperStyle={numColumns > 1 ? styles.row : null}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: height * 0.15 }}
           />
@@ -125,6 +149,8 @@ const Home = () => {
     categoryHeadingFontSize,
     courses,
     renderCourseCard,
+    headerContainerStyle,
+    numColumns,
   ]);
 
   return content;
@@ -133,19 +159,17 @@ const Home = () => {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: Colors.WHITE,
     alignItems: 'center',
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.WHITE,
   },
   headerContainer: {
     alignItems: 'center',
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     elevation: 5,
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#fff',
   },
   greeting: {
     fontFamily: 'outfit-medium',
@@ -182,7 +206,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.WHITE,
+    backgroundColor:'#fff',
   },
   loadingText: {
     fontSize: 18,

@@ -1,34 +1,47 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  ActivityIndicator 
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
+import Colors from '../../constants/Colors';
 import { useNavigation } from 'expo-router';
-import { db } from '../../configs/firebaseConfig';
-import { collection, onSnapshot } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 
 const Notification = () => {
-  const { selectedStandard ,notifications,setNotifications} = useContext(AuthContext);
+
+  const { notifications, selectedStandardColor} = useContext(AuthContext);
   const navigation = useNavigation();
-  // const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState(null);
 
+  // Get window dimensions and determine orientation
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
+
+  // Dynamic container style based on orientation
+  const dynamicContainerStyle = {
+    padding: isPortrait ? 20 : 16,
+  };
+
+  // Set header options with dynamic font size based on orientation
   useEffect(() => {
     navigation.setOptions({
       title: 'Notification',
       headerTitle: () => (
-        <Text style={{ fontSize: 24, fontFamily: 'outfit-medium' }}>Notification</Text>
+        <Text style={{ fontSize: isPortrait ? 24 : 20, fontFamily: 'outfit-medium' }}>
+          Notification
+        </Text>
       ),
     });
-  }, [navigation]);
+  }, [navigation, isPortrait]);
 
+  // Render a single notification item
   const renderNotification = useCallback(({ item }) => (
     <TouchableOpacity style={styles.notificationItem} activeOpacity={0.8}>
       <Ionicons name="notifications" size={24} color={Colors.PRIMARY} />
@@ -39,17 +52,16 @@ const Notification = () => {
     </TouchableOpacity>
   ), []);
 
-
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer, dynamicContainerStyle,,{backgroundColor:selectedStandardColor}]}>
         <Text style={styles.errorText}>{error}</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.safeContainer, dynamicContainerStyle,,{backgroundColor:selectedStandardColor}]}>
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
@@ -59,15 +71,14 @@ const Notification = () => {
           <Text style={styles.emptyText}>No notifications available.</Text>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: Colors.WHITE,
-    padding: 20,
   },
   listContent: {
     paddingVertical: 10,
@@ -101,11 +112,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.GRAY,
   },
   errorText: {
     fontSize: 16,
