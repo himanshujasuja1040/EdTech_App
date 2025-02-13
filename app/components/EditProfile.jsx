@@ -21,12 +21,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 const EditProfile = () => {
   const { name: contextName } = useContext(AuthContext);
-  // const Colors={
-  //   WHITE: '#fff',
-  //   PRIMARY: '#000',
-  //   GRAY: '#7d7d7d',
-  //   LIGHT_GRAY: '#f0f0f0',
-  // }
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -108,7 +102,7 @@ const EditProfile = () => {
         </View>
 
         {/* Email */}
-        <View style={{ marginTop: 20 }}>
+        {/* <View style={{ marginTop: 20 }}>
           <Text style={{ fontFamily: 'outfit' }}>Email</Text>
           <TextInput
             style={styles.input}
@@ -117,7 +111,7 @@ const EditProfile = () => {
             value={email}
             onChangeText={setEmail}
           />
-        </View>
+        </View> */}
 
 
         {/* Save Changes Button */}

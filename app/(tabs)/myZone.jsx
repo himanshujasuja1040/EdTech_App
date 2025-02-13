@@ -1,5 +1,5 @@
 import { router, useNavigation } from 'expo-router';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,180 +10,189 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { ProgressChart } from 'react-native-chart-kit';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../../configs/firebaseConfig';
-import Entypo from '@expo/vector-icons/Entypo';
 import ClassesModule from '../components/ClassesModule';
 import { AuthContext } from '../AuthContext/AuthContext';
 
+/**
+ * ErrorBoundary is a React class component that catches JavaScript errors
+ * anywhere in its child component tree, logs those errors, and displays a fallback UI.
+ */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  // Update state so the next render shows the fallback UI.
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  // Log the error (you might also log to an error reporting service)
+  componentDidCatch(error, info) {
+    console.error('ErrorBoundary caught an error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            Something went wrong: {this.state.error ? this.state.error.toString() : 'Unknown error'}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const MyZone = () => {
-  const navigation = useNavigation();
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const { overallProgress, selectedStandardColor } = useContext(AuthContext);
+  try {
+    // Retrieve navigation (wrapped in try/catch)
+    let navigation;
+    try {
+      navigation = useNavigation();
+    } catch (error) {
+      console.error('Error retrieving navigation:', error);
+      // Optionally, you might return early or display a fallback UI here.
+    }
 
-  // Get current dimensions to support responsive design.
-  const { width, height } = useWindowDimensions();
-  const isPortrait = height >= width;
+    // Retrieve context values (with error handling)
+    let authContext;
+    try {
+      authContext = useContext(AuthContext);
+    } catch (error) {
+      console.error('Error retrieving AuthContext:', error);
+      authContext = {};
+    }
+    const { userData, selectedStandardColor } = authContext || {};
 
-  // Increase horizontal padding in landscape mode.
-  const containerDynamicStyle = {
-    paddingHorizontal: isPortrait ? 16 : 32,
-  };
+    // Get window dimensions for dynamic styling
+    const { width, height } = useWindowDimensions();
+    const isPortrait = height >= width;
+    const containerDynamicStyle = {
+      paddingHorizontal: isPortrait ? 16 : 32,
+    };
 
-  // Compute a dynamic progress chart size (max 150).
-  const progressChartSize = Math.min(width * 0.4, 150);
-
-  // Hide header on this screen.
-  useEffect(() => {
-    navigation.setOptions({
-      title: 'MyZone',
-      headerShown: false,
-    });
-  }, [navigation]);
-
-  useEffect(() => {
-    const fetchUserData = async () => {
+    // Set navigation options safely
+    useEffect(() => {
       try {
-        const user = auth.currentUser;
-        if (user) {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
-          }
-        }
+        navigation && navigation.setOptions({
+          title: 'MyZone',
+          headerShown: false,
+        });
       } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error setting navigation options:', error);
+      }
+    }, [navigation]);
+
+    // Fallback student data
+    const studentData = {
+      name: 'Rahul Sharma',
+      class: '10th Grade',
+    };
+
+    // Determine which data to display
+    const displayData = userData
+      ? {
+          name: userData.fullName?userData.fullName:'John',
+          class: userData.selectedStandard?userData.selectedStandard:'12th Class',
+          userPhoneNumber: userData.userPhoneNumber?userData.userPhoneNumber:'0000000000',
+          userParentPhoneNumber: userData.userParentPhoneNumber?userData.userParentPhoneNumber:'0000000000',
+        }
+      : studentData;
+
+    // Helper function to safely navigate
+    const safeRouterPush = (route) => {
+      try {
+        router.push(route);
+      } catch (error) {
+        console.error(`Error navigating to ${route}:`, error);
       }
     };
 
-    fetchUserData();
-  }, []);
-
-  // Fallback data and mapping
-  const studentData = {
-    name: "Rahul Sharma",
-    class: "10th Grade",
-    overallProgress: overallProgress ? overallProgress : 0.80, // e.g., 0.80 for 80% progress
-  };
-
-  const displayData = userData
-    ? {
-        name: userData.fullName,
-        class: userData.selectedStandard,
-        overallProgress: overallProgress ? overallProgress : 0.80,
-        userPhoneNumber: userData.userPhoneNumber,
-        userParentPhoneNumber: userData.userParentPhoneNumber,
-      }
-    : studentData;
-
-  const chartConfig = {
-    backgroundGradientFrom: "#fff",
-    backgroundGradientTo: "#fff",
-    color: (opacity = 1) => `rgba(42, 77, 105, ${opacity})`,
-    strokeWidth: 2,
-  };
-
-  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: selectedStandardColor }]}>
-      <ScrollView style={[styles.container, containerDynamicStyle]}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person-circle-outline" size={60} color="#fff" />
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{displayData.name}</Text>
-            <Text style={styles.class}>{displayData.class}</Text>
-            {displayData.userPhoneNumber && (
-              <Text style={styles.subText}>Phone: {displayData.userPhoneNumber}</Text>
-            )}
-            {displayData.userParentPhoneNumber && (
-              <Text style={styles.subText}>Parent: {displayData.userParentPhoneNumber}</Text>
-            )}
-          </View>
-        </View>
-
-        {/* Progress Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Learning Progress</Text>
-          <View style={styles.progressContainer}>
-            <ProgressChart
-              data={{ data: [displayData.overallProgress] }}
-              width={progressChartSize}
-              height={progressChartSize}
-              strokeWidth={12}
-              radius={50}
-              chartConfig={chartConfig}
-              hideLegend
-            />
-            <View style={styles.progressTextContainer}>
-              <Text style={styles.progressPercent}>
-                {Math.floor(displayData.overallProgress * 100)}%
-              </Text>
-              <Text style={styles.progressLabel}>Overall Progress</Text>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: selectedStandardColor || '#fff' }]}>
+        <ScrollView style={[styles.container, containerDynamicStyle]}>
+          {/* Profile Header */}
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person-circle-outline" size={60} color="#fff" />
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.name}>{displayData.name}</Text>
+              <Text style={styles.class}>{displayData.class}</Text>
+              {displayData.userPhoneNumber && (
+                <Text style={styles.subText}>Phone: {displayData.userPhoneNumber}</Text>
+              )}
+              {displayData.userParentPhoneNumber && (
+                <Text style={styles.subText}>Parent: {displayData.userParentPhoneNumber}</Text>
+              )}
             </View>
           </View>
-        </View>
 
-        {/* Quick Access Cards */}
-        <View style={styles.cardRow}>
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/components/Schedule')}>
-            <MaterialIcons name="schedule" size={32} color="#2A4D69" />
-            <Text style={styles.cardText}>Class Schedule</Text>
-          </TouchableOpacity>
+ 
 
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/subscreens/AssigmentNote')}>
-            <Ionicons name="book" size={32} color="#2A4D69" />
-            <Text style={styles.cardText}>Study Materials</Text>
-          </TouchableOpacity>
-        </View>
+          {/* Quick Access Cards */}
+          <View style={styles.cardRow}>
+            <TouchableOpacity style={styles.card} onPress={() => safeRouterPush('/components/Schedule')}>
+              <MaterialIcons name="schedule" size={32} color="#2A4D69" />
+              <Text style={styles.cardText}>Class Schedule</Text>
+            </TouchableOpacity>
 
-        {/* Daily Study Tip Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Study Tip</Text>
-          <View style={styles.tipCard}>
-            <Text style={styles.tipText}>
-              Radhe Radhe Baccho, Parents ko proud feel krana hai – isse badiya koi tip hi nahi!
-            </Text>
+            <TouchableOpacity style={styles.card} onPress={() => safeRouterPush('/subscreens/AssigmentNote')}>
+              <Ionicons name="book" size={32} color="#2A4D69" />
+              <Text style={styles.cardText}>Study Materials</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Upcoming Classes Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upcoming Classes</Text>
-          <ClassesModule />
-        </View>
+          {/* Daily Study Tip Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Daily Study Tip</Text>
+            <View style={styles.tipCard}>
+              <Text style={styles.tipText}>
+                Radhe Radhe Baccho, Parents ko proud feel krana hai – isse badiya koi tip hi nahi!
+              </Text>
+            </View>
+          </View>
 
-        {/* Bottom Button Row */}
-        <View style={styles.iconRow}>
-          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Profile")}>
-            <Ionicons name="settings" size={24} color="#2A4D69" />
-            <Text style={styles.iconText}>Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Attendance")}>
-            <Entypo name="new-message" size={24} color="#2A4D69" />
-            <Text style={styles.iconText}>Attendance</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCard} onPress={() => router.push("/components/Schedule")}>
-            <Ionicons name="time" size={24} color="#2A4D69" />
-            <Text style={styles.iconText}>Schedule</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+          {/* Upcoming Classes Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Upcoming Classes</Text>
+            {/* Wrap ClassesModule with ErrorBoundary in case it fails */}
+            <ErrorBoundary>
+              <ClassesModule />
+            </ErrorBoundary>
+          </View>
+
+          {/* Bottom Button Row */}
+          <View style={styles.iconRow}>
+            <TouchableOpacity style={styles.iconCard} onPress={() => safeRouterPush('/components/Profile')}>
+              <Ionicons name="settings" size={24} color="#2A4D69" />
+              <Text style={styles.iconText}>Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconCard} onPress={() => safeRouterPush('/components/Attendance')}>
+              <Ionicons name="book" size={24} color="#2A4D69" />
+              <Text style={styles.iconText}>Attendance</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconCard} onPress={() => safeRouterPush('/components/Schedule')}>
+              <Ionicons name="time" size={24} color="#2A4D69" />
+              <Text style={styles.iconText}>Schedule</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  } catch (error) {
+    // If any synchronous error occurs during rendering, log it and display a fallback UI.
+    console.error('Error rendering MyZone component:', error);
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <Text style={styles.errorText}>An unexpected error occurred: {error.message}</Text>
+      </SafeAreaView>
+    );
+  }
 };
 
 const styles = StyleSheet.create({
@@ -194,14 +203,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
   },
-  loadingContainer: {
+  errorContainer: {
     flex: 1,
-    alignItems: 'center',
+    padding: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  loadingText: {
+  errorText: {
     fontSize: 18,
-    color: '#333',
+    color: 'red',
+    textAlign: 'center',
   },
   profileHeader: {
     fontFamily: 'outfit',
@@ -340,4 +351,9 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MyZone;
+// Wrap the exported component in ErrorBoundary to catch any errors in the component tree.
+export default () => (
+  <ErrorBoundary>
+    <MyZone />
+  </ErrorBoundary>
+);

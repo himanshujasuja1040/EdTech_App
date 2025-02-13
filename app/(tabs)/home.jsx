@@ -18,7 +18,7 @@ const LoadingScreen = () => (
 );
 
 const Home = () => {
-  const { selectedStandard, name, selectedStandardColor } = useContext(AuthContext);
+  const { selectedStandard, name, selectedStandardColor,userLocation } = useContext(AuthContext);
   const { width, height } = useWindowDimensions();
 
   const navigation = useNavigation();

@@ -1,5 +1,4 @@
-// import { Colors } from '@/constants/Colors';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,46 +7,44 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  BackHandler,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import  Colors  from '../../constants/Colors';
+import Colors from '../../constants/Colors';
 
 const Login = () => {
   const router = useRouter();
-  // const Colors={
-  //   WHITE: '#fff',
-  //   PRIMARY: '#000',
-  //   GRAY: '#7d7d7d',
-  //   LIGHT_GRAY: '#f0f0f0',
-  // }
   const navigation = useNavigation();
   const { width, height } = useWindowDimensions();
-  const isPortrait = height >= width;
 
-  // For portrait mode, the image height is set to 60% of the screen height.
-  const portraitImageHeight = height * 0.6;
+  // Determine orientation and image sizing.
+  const isPortrait = useMemo(() => height >= width, [height, width]);
+  const portraitImageHeight = useMemo(() => height * 0.6, [height]);
 
-  // Local states for loading and error handling.
+  // State for loading, error, and user data presence.
   const [isLoading, setIsLoading] = useState(true);
+  const [hasUserData, setHasUserData] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Hide the header.
+  // Hide the header on mount.
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
   }, [navigation]);
 
-  // Auto Login Check: if user data is found in AsyncStorage, navigate to the Main Page.
+  // Check AsyncStorage for user data on mount (but do not auto-navigate).
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
         setIsLoading(true);
         const user = await AsyncStorage.getItem('user');
         if (user) {
-          router.replace('/components/LoadingPage');
+          setHasUserData(true);
+        } else {
+          setHasUserData(false);
         }
       } catch (error) {
         console.error('Error retrieving user data:', error);
@@ -58,21 +55,49 @@ const Login = () => {
     };
 
     checkLoginStatus();
-  }, [router]);
+  }, []);
 
-  // While checking the login status, display a loading indicator.
-  if (isLoading) {
-    return (
-      <SafeAreaView style={[styles.container, styles.centerContainer]}>
-        <ActivityIndicator size="large" color={Colors.PRIMARY} />
-        <Text style={{ marginTop: 10 }}>Checking login status...</Text>
-      </SafeAreaView>
-    );
-  }
+  // Prevent hardware back button action.
+  useEffect(() => {
+    const backAction = () => true;
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, []);
 
-  // Render layout based on the orientation.
+  // On clicking "Get Started", navigate based on the presence of user data.
+  const handleGetStarted = useCallback(() => {
+    // Ensure the router is available
+    if (!router) {
+      console.error('Router is not available.');
+      return;
+    }
+  
+    // Strictly check that hasUserData is a boolean
+    if (hasUserData === true) {
+      router.replace('/components/LoadingPage');
+    } else if (hasUserData === false) {
+      router.push('/auth/sign-in'); // Consistent use of leading slash
+    } else {
+      // This branch should not be reached if hasUserData is always a boolean.
+      console.error('Unexpected value for hasUserData:', hasUserData);
+    }
+  }, [hasUserData, router]);
+  
+
+
+  // Display a loading spinner while checking login status.
+  // if (isLoading) {
+  //   return (
+  //     <SafeAreaView style={[styles.container, styles.centerContainer]}>
+  //       <ActivityIndicator size="large" color={Colors.PRIMARY} />
+  //       <Text style={{ marginTop: 10 }}>Checking login status...</Text>
+  //     </SafeAreaView>
+  //   );
+  // }
+
+  // Render layout based on orientation.
   if (isPortrait) {
-    // Portrait Layout: Image on top, content below.
+    // Portrait layout: image on top, content below.
     return (
       <SafeAreaView style={styles.container}>
         <Image
@@ -81,21 +106,16 @@ const Login = () => {
         />
         <View style={[styles.contentContainer, { paddingHorizontal: width * 0.05 }]}>
           <Text style={styles.title}>ABHISHEK BHAIYA CLASSES</Text>
-          <Text style={styles.description}>
-            Radhe Radhe Bacho ...... !!
-          </Text>
-          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => router.push('auth/sign-in')}
-          >
+          <Text style={styles.description}>Radhe Radhe Bacho ...... !!</Text>
+          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+          <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
             <Text style={styles.buttonText}>Get Started</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   } else {
-    // Landscape Layout: Horizontal layout with image on the left and content on the right.
+    // Landscape layout: image on the left, content on the right.
     return (
       <SafeAreaView style={[styles.container, { flexDirection: 'row' }]}>
         <Image
@@ -109,7 +129,6 @@ const Login = () => {
               width: width * 0.5,
               paddingHorizontal: width * 0.05,
               marginTop: 0,
-              // Remove the top border radii since the layout is horizontal.
               borderTopLeftRadius: 0,
               borderTopRightRadius: 30,
               borderBottomLeftRadius: 0,
@@ -119,14 +138,9 @@ const Login = () => {
           ]}
         >
           <Text style={styles.title}>ABHISHEK BHAIYA CLASSES</Text>
-          <Text style={styles.description}>
-            Radhe Radhe Bacho ...... !!
-          </Text>
-          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => router.push('auth/sign-in')}
-          >
+          <Text style={styles.description}>Radhe Radhe Bacho ...... !!</Text>
+          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+          <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
             <Text style={styles.buttonText}>Get Started</Text>
           </TouchableOpacity>
         </View>
@@ -146,8 +160,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     backgroundColor: Colors.WHITE,
-    // For portrait, a slight negative margin creates an overlapping effect.
-    marginTop: -15,
+    marginTop: -15, // Creates an overlapping effect in portrait mode.
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 25,
@@ -192,4 +205,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Login;
+// Wrap the component with React.memo to avoid unnecessary re-renders.
+export default React.memo(Login);

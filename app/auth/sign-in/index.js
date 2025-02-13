@@ -18,6 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../../configs/firebaseConfig';
 import Colors from '../../../constants/Colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignIn = () => {
   // const Colors={
@@ -78,6 +79,13 @@ const SignIn = () => {
         password.trim()
       );
       console.log(userCredential.user);
+      try {
+        await AsyncStorage.setItem('user', JSON.stringify(userCredential.user));
+      } catch (storageError) {
+        console.error('Failed to save user data:', storageError);
+        Alert('Failed to Load Data , Please Try Again Later ')
+        // Optionally, you can show an alert to the user here if needed
+      }
       router.replace('/components/LoadingPage');
     } catch (error) {
       console.error(error.code, error.message);

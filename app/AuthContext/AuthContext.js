@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc,GeoPoint } from 'firebase/firestore';
 import { auth, db } from '../../configs/firebaseConfig';
 
 export const AuthContext = createContext();
@@ -12,9 +12,10 @@ const AuthProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [userPhoneNumber, setUserPhoneNumber] = useState();
   const [userParentPhoneNumber, setUserParentPhoneNumber] = useState();
-  const [selectedStandardColor, setselectedStandardColor] = useState('#fff')
+  const [selectedStandardColor, setselectedStandardColor] = useState('#fff');
   const [name, setName] = useState("Guest");
   const [error, setError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
 
   // Category Colors 
   const categoryColors = {
@@ -37,16 +38,13 @@ const AuthProvider = ({ children }) => {
     }
   }, [userData]);
 
-  // Update selectedCategory when selectedStandard changes (and if userData exists)
-
+  // Update selectedStandard when it changes (and if userData exists)
   useEffect(() => {
     if (userData) {
       setSelectedStandard(selectedStandard);
-      setselectedStandardColor(categoryColors[selectedStandard])
+      setselectedStandardColor(categoryColors[selectedStandard]);
     }
   }, [selectedStandard, userData]);
-
-
 
   // Subscribe to notifications for the selected standard.
   useEffect(() => {
@@ -76,16 +74,8 @@ const AuthProvider = ({ children }) => {
   }, [selectedStandard]);
 
 
-  //Progress
-  function randomiseProgress() {
-    // Generate a random number between 0.6 and 1.
-    const overallProgress = Math.random() * (1 - 0.6) + 0.6;
-    // Round to two decimal places.
-    const overallProgress1 = Math.round(overallProgress * 100) / 100;
-    return overallProgress1;
-  }
-
-  const overallProgress = randomiseProgress() ? randomiseProgress() : 0.75;
+  
+  
 
   // Prepare the context value with the correct dependencies.
   const contextValue = useMemo(() => ({
@@ -100,14 +90,26 @@ const AuthProvider = ({ children }) => {
     userData,
     setUserData,
     error,
-    overallProgress,
     userPhoneNumber,
     setUserPhoneNumber,
     userParentPhoneNumber,
     setUserParentPhoneNumber,
     selectedStandardColor,
-    setselectedStandardColor
-  }), [selectedStandard, selectedCategory, name, notifications, userData, error, overallProgress, userPhoneNumber, userParentPhoneNumber, selectedStandardColor]);
+    setselectedStandardColor,
+    userLocation,
+    setUserLocation
+  }), [
+    selectedStandard,
+    selectedCategory,
+    name,
+    notifications,
+    userData,
+    error,
+    userPhoneNumber,
+    userParentPhoneNumber,
+    selectedStandardColor,
+    userLocation
+  ]);
 
   // Create a key based on userData.
   const providerKey = userData ? (userData.id || JSON.stringify(userData)) : 'default';

@@ -75,7 +75,7 @@ const NoAccess = () => {
     <SafeAreaView style={styles.safeArea}>
       {/* Header with back button */}
       <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={() => router.replace('/components/Login')}>
+        <TouchableOpacity onPress={() => router.replace('/auth/sign-in')}>
           <Ionicons name="arrow-back" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -98,7 +98,7 @@ const NoAccess = () => {
           </Text>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => router.replace('/components/Login')}
+            onPress={() => router.replace('/auth/sign-in')}
           >
             <Text style={styles.buttonText}>Go Back</Text>
           </TouchableOpacity>

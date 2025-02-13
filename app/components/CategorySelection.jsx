@@ -16,13 +16,11 @@ import { AuthContext } from '../AuthContext/AuthContext';
 import Colors from '../../constants/Colors';
 
 const CategorySelection = () => {
-  console.log(Colors);
   const navigation = useNavigation();
   const { selectedStandard, setSelectedStandard, setselectedStandardColor } = useContext(AuthContext);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  console.log('Current selectedStandard:', selectedStandard);
 
   // If nothing is selected, default to the context’s selectedStandard
   useEffect(() => {
@@ -101,7 +99,6 @@ const CategorySelection = () => {
     setTimeout(() => {
       const categoryToSet = selectedCategory || selectedStandard;
       setSelectedStandard(categoryToSet);
-      console.log('Category selected:', categoryToSet);
       router.replace("/(tabs)/home");
     }, 1000);
   };

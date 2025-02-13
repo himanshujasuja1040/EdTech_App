@@ -17,10 +17,11 @@ import { useNavigation, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { auth, db } from '../../../configs/firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc,GeoPoint  } from 'firebase/firestore';
 import CustomDropdown from '../../components/CustomDropdown';
 import { AuthContext } from '../../AuthContext/AuthContext';
 import Colors from '../../../constants/Colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const SignUP = () => {
 
   const [email, setEmail] = useState('');
@@ -99,7 +100,9 @@ const SignUP = () => {
         createdAt: new Date(), // Timestamp
         userPhoneNumber: userPhoneNumber,
         userParentPhoneNumber: userParentPhoneNumber,
+        location: new GeoPoint(0, 0),
       });
+      await AsyncStorage.setItem('user', JSON.stringify(userCredential.user));
       console.log('User data saved:', {
         fullName,
         email: user.email,
@@ -107,6 +110,7 @@ const SignUP = () => {
         accessGranted: false,
         userPhoneNumber: userPhoneNumber,
         userParentPhoneNumber: userParentPhoneNumber,
+        location: new GeoPoint(0, 0),
       });
       router.replace('/components/LoadingPage');
     } catch (error) {
