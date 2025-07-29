@@ -10,18 +10,21 @@ import {
   Image,
   TextInput,
   Share,
-  ScrollView,
-  SafeAreaView
+  SafeAreaView,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const PREMIUM_COURSE_CACHE_KEY = 'premiumCourseCache';
+const PREMIUM_COURSE_CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
+
 const PremiumCourse = () => {
-  const { selectedStandard ,selectedStandardColor} = useContext(AuthContext);
+  const { selectedStandard, selectedStandardColor } = useContext(AuthContext);
   const [premiumCourses, setPremiumCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,10 +37,25 @@ const PremiumCourse = () => {
     });
   }, [navigation]);
 
-  // Fetch courses from Firestore collection "PremiumCourse"
+  // Function to fetch courses with caching
   useEffect(() => {
     const fetchPremiumCourses = async () => {
       try {
+        setLoading(true);
+
+        // Check AsyncStorage for cached premium courses data
+        const cachedDataString = await AsyncStorage.getItem(PREMIUM_COURSE_CACHE_KEY);
+        if (cachedDataString) {
+          const cachedData = JSON.parse(cachedDataString);
+          if (cachedData?.timestamp && Date.now() - cachedData.timestamp < PREMIUM_COURSE_CACHE_EXPIRY) {
+            console.log('Using cached premium courses data');
+            setPremiumCourses(cachedData.data);
+            setError(null);
+            return;
+          }
+        }
+
+        // If no valid cache, fetch from Firestore
         const coursesCollectionRef = collection(db, 'PremiumCourse');
         const querySnapshot = await getDocs(coursesCollectionRef);
         const courses = querySnapshot.docs.map(doc => ({
@@ -46,6 +64,12 @@ const PremiumCourse = () => {
         }));
         setPremiumCourses(courses);
         setError(null);
+
+        // Save the fresh data in cache with current timestamp
+        await AsyncStorage.setItem(
+          PREMIUM_COURSE_CACHE_KEY,
+          JSON.stringify({ data: courses, timestamp: Date.now() })
+        );
       } catch (err) {
         console.error('Error fetching Premium Courses:', err);
         setError('Failed to load courses. Please try again.');
@@ -64,7 +88,7 @@ const PremiumCourse = () => {
       course.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Render each course item with improved layout.
+  // Render each course item
   const renderCourseItem = useCallback(({ item }) => {
     const price = parseFloat(item.price);
     const discount = parseFloat(item.discount);
@@ -73,7 +97,7 @@ const PremiumCourse = () => {
     const handleShare = async () => {
       try {
         await Share.share({
-          message: `Check out this premium course:\n\n${item.title}\nClass: ${item.class}\nPrice: ₹${discount > 0 ? discountedPrice.toFixed(0) : price.toFixed(0)}`,
+          message: `Abhishek Bhaiya Classes \n Check out this premium course:\n\n${item.title}\nClass: ${item.class}\nPrice: ₹${discount > 0 ? discountedPrice.toFixed(0) : price.toFixed(0)}`,
         });
       } catch (error) {
         console.error('Error sharing course:', error);
@@ -125,7 +149,7 @@ const PremiumCourse = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Courses...</Text>
       </SafeAreaView>
@@ -134,17 +158,15 @@ const PremiumCourse = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
       </SafeAreaView>
     );
   }
 
-
-
   return (
-    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: selectedStandardColor }]}>
       <FlatList
         data={filteredCourses}
         renderItem={renderCourseItem}
@@ -156,7 +178,6 @@ const PremiumCourse = () => {
             <View style={styles.headerContainer}>
               <Text style={styles.header}>Exclusive Content : {selectedStandard}</Text>
             </View>
-
             {/* Search Bar */}
             <View style={styles.searchContainer}>
               <TextInput
@@ -181,12 +202,9 @@ const PremiumCourse = () => {
       />
     </SafeAreaView>
   );
-
-
 };
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     height: '100%',
@@ -203,12 +221,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#333',
     textAlign: 'center',
-  },
-  subHeader: {
-    fontSize: 16,
-    color: '#777',
-    textAlign: 'center',
-    marginTop: 4,
   },
   searchContainer: {
     marginHorizontal: 20,
@@ -270,11 +282,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 12,
     fontSize: 12,
-  },
-  courseTag: {
-    color: '#ff9800',
-    fontSize: 12,
-    fontWeight: '500',
   },
   title: {
     fontSize: 16,

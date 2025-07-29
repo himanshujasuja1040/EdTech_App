@@ -17,9 +17,13 @@ import { collection, getDocs } from "firebase/firestore";
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CACHE_KEY = 'assignmentNotes';
+const CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
 
 const AssignmentNote = React.memo(() => {
-  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
+  const { selectedStandard, selectedStandardColor, selectedTopic, selectedSubject } = useContext(AuthContext);
   const [assignmentNotes, setAssignmentNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,8 +31,8 @@ const AssignmentNote = React.memo(() => {
   const navigation = useNavigation();
 
   // Search states for filtering by Title and Subject
-  const [searchTitle, setSearchTitle] = useState('');
-  const [searchSubject, setSearchSubject] = useState('');
+  const [searchTitle, setSearchTitle] = useState(selectedTopic);
+  const [searchSubject, setSearchSubject] = useState(selectedSubject);
 
   // Get current screen dimensions for responsive styling.
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
@@ -39,9 +43,29 @@ const AssignmentNote = React.memo(() => {
     });
   }, [navigation]);
 
+  // Check if cached data is valid
+  const isCacheValid = (timestamp) => {
+    return Date.now() - timestamp < CACHE_EXPIRY;
+  };
+
+  // Fetch assignment notes with caching using AsyncStorage
   const fetchAssignmentNotes = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Check AsyncStorage for cached assignment notes
+      const cachedDataString = await AsyncStorage.getItem(CACHE_KEY);
+      if (cachedDataString) {
+        const cachedData = JSON.parse(cachedDataString);
+        if (cachedData?.timestamp && isCacheValid(cachedData.timestamp)) {
+          console.log('Using cached assignment notes');
+          setAssignmentNotes(cachedData.data);
+          setError(null);
+          return;
+        }
+      }
+
+      // If no valid cache exists, fetch from Firebase
       const notesCollectionRef = collection(db, 'AssigmentNotes');
       const querySnapshot = await getDocs(notesCollectionRef);
       const fetchedNotes = querySnapshot.docs.map((doc) => ({
@@ -50,6 +74,12 @@ const AssignmentNote = React.memo(() => {
       }));
       setAssignmentNotes(fetchedNotes);
       setError(null);
+      
+      // Store fresh data in cache with current timestamp
+      await AsyncStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ data: fetchedNotes, timestamp: Date.now() })
+      );
     } catch (err) {
       console.error('Error fetching assignment notes:', err);
       setError('Failed to load notes. Please try again later.');
@@ -132,7 +162,7 @@ const AssignmentNote = React.memo(() => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Notes...</Text>
       </SafeAreaView>
@@ -141,7 +171,7 @@ const AssignmentNote = React.memo(() => {
 
   if (error && assignmentNotes.length === 0) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <Text style={{ fontSize: 48, color: "#D32F2F" }}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
       </SafeAreaView>
@@ -149,7 +179,7 @@ const AssignmentNote = React.memo(() => {
   }
 
   return (
-    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: selectedStandardColor }]}>
       <FlatList
         data={filteredNotes}
         keyExtractor={(item) => item.id}
@@ -180,13 +210,13 @@ const AssignmentNote = React.memo(() => {
           </View>
         }
         ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyIcon}>📭</Text>
-                    <Text style={styles.emptyText}>
-                      No Assigment found for {selectedStandard} Matching Your SEarch 
-                    </Text>
-                  </View>
-                }
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📭</Text>
+            <Text style={styles.emptyText}>
+              No Assignment found for {selectedStandard} matching your search
+            </Text>
+          </View>
+        }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={

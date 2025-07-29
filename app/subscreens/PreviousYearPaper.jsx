@@ -1,36 +1,40 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Dimensions, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
   Alert,
   TextInput,
   RefreshControl,
-  SafeAreaView
+  SafeAreaView,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const PAPER_CACHE_KEY = 'previousYearPaperCache';
+const PAPER_CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
+
 const PreviousYearPaper = () => {
-  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
+  const { selectedStandard, selectedStandardColor, selectedTopic, selectedSubject } = useContext(AuthContext);
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Separate states for each search criteria.
+
+  // Search state variables
   const [yearQuery, setYearQuery] = useState('');
-  const [subjectQuery, setSubjectQuery] = useState('');
-  const [titleQuery, setTitleQuery] = useState('');
+  const [subjectQuery, setSubjectQuery] = useState(selectedSubject);
+  const [titleQuery, setTitleQuery] = useState(selectedTopic);
 
   const navigation = useNavigation();
 
@@ -40,10 +44,23 @@ const PreviousYearPaper = () => {
     });
   }, [navigation]);
 
-  // Fetch papers from Firestore using the modular SDK.
   const fetchPapers = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading(true);
+
+      // Check AsyncStorage for cached papers
+      const cachedDataString = await AsyncStorage.getItem(PAPER_CACHE_KEY);
+      if (cachedDataString) {
+        const cachedData = JSON.parse(cachedDataString);
+        if (cachedData?.timestamp && Date.now() - cachedData.timestamp < PAPER_CACHE_EXPIRY) {
+          console.log('Using cached papers data');
+          setPapers(cachedData.data);
+          setError(null);
+          return;
+        }
+      }
+
+      // Fetch fresh data from Firestore if no valid cache is found
       const papersCollectionRef = collection(db, 'PreviousYearPapers');
       const querySnapshot = await getDocs(papersCollectionRef);
       const fetchedPapers = querySnapshot.docs.map(doc => ({
@@ -52,13 +69,18 @@ const PreviousYearPaper = () => {
       }));
       setPapers(fetchedPapers);
       setError(null);
+
+      // Store fresh data in cache with timestamp
+      await AsyncStorage.setItem(
+        PAPER_CACHE_KEY,
+        JSON.stringify({ data: fetchedPapers, timestamp: Date.now() })
+      );
     } catch (err) {
       console.error('Error fetching papers:', err);
       setError('Failed to load papers. Pull down to refresh.');
     } finally {
       setLoading(false);
-      setRefreshing(false)
-
+      setRefreshing(false);
     }
   }, []);
 
@@ -66,12 +88,11 @@ const PreviousYearPaper = () => {
     fetchPapers();
   }, [fetchPapers]);
 
-     const handleRefresh = useCallback(() => {
-        setRefreshing(true);
-        fetchPapers();
-      }, [fetchPapers]);
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchPapers();
+  }, [fetchPapers]);
 
-  // Handle opening a paper link.
   const handleOpenPaper = useCallback((url) => {
     if (!url) {
       Alert.alert('Invalid Paper', 'This paper is not currently available');
@@ -83,51 +104,15 @@ const PreviousYearPaper = () => {
     });
   }, []);
 
-  // Render each paper item.
-  const renderPaperItem = useCallback(({ item }) => (
-    <View 
-      style={styles.card}
-      activeOpacity={0.9}
-      
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.yearBadge}>📅 {item.year}</Text>
-        <Text style={styles.classTag}>Class {item.class}</Text>
-      </View>
-      <Text style={styles.subject}>Subject : {item.subject}</Text>
-      <Text style={styles.subject}> {item.title}</Text>
-      
-      {item.drivelink ? (
-        <TouchableOpacity style={styles.linkContainer} onPress={() => item.drivelink && handleOpenPaper(item.drivelink)}>
-          <Text style={styles.linkText}>View Paper →</Text>
-        </TouchableOpacity>
-      ) : (
-        <Text style={styles.disabledLink}>🚫 Currently Unavailable</Text>
-      )}
-    </View>
-  ), [handleOpenPaper]);
-
-  // Filter papers by selected standard and all search queries.
+  // Filter papers by selected standard and search queries.
   const filteredPapers = papers.filter(paper => {
     const matchesStandard = paper.class.toLowerCase() === selectedStandard.toLowerCase();
-
-    const matchesYear =
-      yearQuery.trim() === '' ||
-      paper.year.toString().toLowerCase().includes(yearQuery.toLowerCase());
-
-    const matchesSubject =
-      subjectQuery.trim() === '' ||
-      paper.subject.toLowerCase().includes(subjectQuery.toLowerCase());
-
-    // For title, if the paper does not have a title field, we consider it a match only if titleQuery is empty.
-    const matchesTitle =
-      titleQuery.trim() === '' ||
-      (paper.title && paper.title.toLowerCase().includes(titleQuery.toLowerCase()));
-
+    const matchesYear = yearQuery.trim() === '' || paper.year.toString().toLowerCase().includes(yearQuery.toLowerCase());
+    const matchesSubject = subjectQuery.trim() === '' || paper.subject.toLowerCase().includes(subjectQuery.toLowerCase());
+    const matchesTitle = titleQuery.trim() === '' || (paper.title && paper.title.toLowerCase().includes(titleQuery.toLowerCase()));
     return matchesStandard && matchesYear && matchesSubject && matchesTitle;
   });
 
-  // Render the header for the FlatList (including header text and search bars)
   const renderHeader = () => (
     <View style={styles.headerWrapper}>
       <View style={styles.headerContainer}>
@@ -159,9 +144,29 @@ const PreviousYearPaper = () => {
     </View>
   );
 
+  const renderPaperItem = useCallback(({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.yearBadge}>📅 {item.year}</Text>
+        <Text style={styles.classTag}>Class {item.class}</Text>
+      </View>
+      <Text style={styles.subject}>Subject: {item.subject}</Text>
+      <Text style={styles.subject}>{item.title}</Text>
+      {item.drivelink ? (
+        <TouchableOpacity style={styles.linkContainer} onPress={() => handleOpenPaper(item.drivelink)}>
+          <Text style={styles.linkText}>View Paper →</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.disabledLink}>🚫 Currently Unavailable</Text>
+      )}
+    </View>
+  ), [handleOpenPaper]);
+
+  const keyExtractor = useCallback(item => item.id, []);
+
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Papers...</Text>
       </SafeAreaView>
@@ -170,7 +175,7 @@ const PreviousYearPaper = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity onPress={fetchPapers} style={styles.retryButton}>
@@ -181,13 +186,13 @@ const PreviousYearPaper = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: selectedStandardColor }]}>
       <FlatList
         data={filteredPapers}
-        keyExtractor={item => item.id}
+        keyExtractor={keyExtractor}
         renderItem={renderPaperItem}
-        ListHeaderComponent={<View>
-              <View style={styles.headerWrapper}>
+        ListHeaderComponent={
+          <View style={styles.headerWrapper}>
       <View style={styles.headerContainer}>
         <Text style={styles.header}>{selectedStandard} Question Papers</Text>
       </View>
@@ -215,7 +220,7 @@ const PreviousYearPaper = () => {
         />
       </View>
     </View>
-        </View>}
+        }
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -229,9 +234,7 @@ const PreviousYearPaper = () => {
         initialNumToRender={3}
         maxToRenderPerBatch={5}
         windowSize={5}
-        refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         removeClippedSubviews={true}
       />
     </SafeAreaView>
@@ -242,7 +245,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 10,
-    paddingBottom:40,
+    paddingBottom: 40,
   },
   headerWrapper: {
     paddingTop: 16,
@@ -294,7 +297,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     overflow: 'hidden',
-
   },
   cardHeader: {
     flexDirection: 'row',

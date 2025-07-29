@@ -17,6 +17,7 @@ import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from 'expo-router';
 import YoutubePlayer from "react-native-youtube-iframe";
 import WebView from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,8 +29,11 @@ const getYoutubeId = (url) => {
   return match?.[1] || null;
 };
 
+const LECTURE_CACHE_KEY = 'freeLectures';
+const LECTURE_CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour
+
 const FreeLecture = () => {
-  const { selectedStandard,selectedStandardColor } = useContext(AuthContext);
+  const { selectedStandard, selectedStandardColor, selectedTopic, selectedSubject } = useContext(AuthContext);
   const [lectures, setLectures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,17 +41,31 @@ const FreeLecture = () => {
   const navigation = useNavigation();
 
   // New search state variables.
-  const [subjectQuery, setSubjectQuery] = useState('');
-  const [globalQuery, setGlobalQuery] = useState('');
+  const [subjectQuery, setSubjectQuery] = useState(selectedSubject || '');
+  const [globalQuery, setGlobalQuery] = useState(selectedTopic||'');
 
   useEffect(() => {
     navigation.setOptions({ title: 'Lectures' });
   }, [navigation]);
 
-  // Fetch lectures from the "FreeLecture" collection.
+  // Fetch lectures from the "FreeLecture" collection with caching.
   const fetchLectures = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Check AsyncStorage for cached lectures.
+      const cachedDataString = await AsyncStorage.getItem(LECTURE_CACHE_KEY);
+      if (cachedDataString) {
+        const cachedData = JSON.parse(cachedDataString);
+        if (cachedData?.timestamp && (Date.now() - cachedData.timestamp < LECTURE_CACHE_EXPIRY)) {
+          console.log('Using cached lectures data');
+          setLectures(cachedData.data);
+          setError(null);
+          return;
+        }
+      }
+
+      // No valid cache: fetch from Firebase.
       const lecturesCollectionRef = collection(db, 'FreeLecture');
       const querySnapshot = await getDocs(lecturesCollectionRef);
       const fetchedLectures = querySnapshot.docs.map(doc => ({
@@ -56,6 +74,12 @@ const FreeLecture = () => {
       }));
       setLectures(fetchedLectures);
       setError(null);
+
+      // Cache the fetched lectures with a timestamp.
+      await AsyncStorage.setItem(
+        LECTURE_CACHE_KEY,
+        JSON.stringify({ data: fetchedLectures, timestamp: Date.now() })
+      );
     } catch (err) {
       console.error('Error fetching lectures:', err);
       setError('Failed to load lectures. Please check your connection.');
@@ -69,30 +93,29 @@ const FreeLecture = () => {
     fetchLectures();
   }, [fetchLectures]);
   
-    const handleRefresh = useCallback(() => {
-      setRefreshing(true);
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
     fetchLectures();
-    }, [fetchLectures]);
+  }, [fetchLectures]);
 
   // Filter lectures based on the selected standard and search queries.
   const filteredLectures = useMemo(() => {
-    const lowerStd = selectedStandard.toLowerCase();
+    const lowerStd = (selectedStandard || '').toLowerCase();
     return lectures.filter((lecture) => {
-      if (!lecture.class || lecture.class.toLowerCase() !== lowerStd) {
+      if ((lecture.class || '').toLowerCase() !== lowerStd) {
         return false;
       }
       if (
         subjectQuery.trim() !== '' &&
-        lecture.subject &&
-        !lecture.subject.toLowerCase().includes(subjectQuery.toLowerCase())
+        !(lecture.subject || '').toLowerCase().includes(subjectQuery.toLowerCase())
       ) {
         return false;
       }
       if (globalQuery.trim() !== '') {
         const queryLower = globalQuery.toLowerCase();
         if (
-          !(lecture.title && lecture.title.toLowerCase().includes(queryLower)) &&
-          !(lecture.subject && lecture.subject.toLowerCase().includes(queryLower))
+          !((lecture.title || '').toLowerCase().includes(queryLower)) &&
+          !((lecture.subject || '').toLowerCase().includes(queryLower))
         ) {
           return false;
         }
@@ -100,7 +123,7 @@ const FreeLecture = () => {
       return true;
     });
   }, [lectures, selectedStandard, subjectQuery, globalQuery]);
-
+  
   // Lecture card component with YouTube player at the bottom.
   const LectureCard = ({ item }) => {
     return (
@@ -119,8 +142,6 @@ const FreeLecture = () => {
           <Text style={styles.subjectText}>
             Subject: {item.subject}
           </Text>
-          
-          
         </View>
 
         {/* YouTube Player Section (at the bottom) */}
@@ -146,7 +167,7 @@ const FreeLecture = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centeredContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centeredContainer, { backgroundColor: selectedStandardColor }]}>
         <ActivityIndicator size="large" color="#1e90ff" />
         <Text style={styles.loadingText}>Loading Lectures...</Text>
       </SafeAreaView>
@@ -155,7 +176,7 @@ const FreeLecture = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.centeredContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centeredContainer, { backgroundColor: selectedStandardColor }]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity onPress={fetchLectures} style={styles.retryButton}>
@@ -166,7 +187,7 @@ const FreeLecture = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: selectedStandardColor }]}>
       <FlatList
         data={filteredLectures}
         renderItem={renderLecture}
@@ -203,13 +224,13 @@ const FreeLecture = () => {
             </Text>
           </View>
         }
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-                }
-                initialNumToRender={5}
-                windowSize={10}
-                removeClippedSubviews={true}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        initialNumToRender={5}
+        windowSize={10}
+        removeClippedSubviews={true}
       />
     </SafeAreaView>
   );
@@ -218,65 +239,65 @@ const FreeLecture = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8', // Changed to a softer background color
+    backgroundColor: '#f0f4f8',
     paddingTop: 10,
-    paddingBottom:40,
+    paddingBottom: 40,
   },
   header: {
-    fontSize: 28, // Increased font size for better visibility
-    fontWeight: 'bold', // Changed to bold for emphasis
-    color: '#2c3e50', // Darker color for better readability
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     textAlign: 'center',
-    marginVertical: 12, // Increased margin for better spacing
-    letterSpacing: 1, // Added letter spacing for a more modern look
+    marginVertical: 12,
+    letterSpacing: 1,
   },
   searchContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20, // Increased bottom margin for more space
+    marginBottom: 20,
   },
   searchInput: {
     borderWidth: 1,
-    borderColor: '#bdc3c7', // Changed to a softer gray color
-    borderRadius: 8, // More rounded corners
-    padding: 12, // Increased padding for better touch area
+    borderColor: '#bdc3c7',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    marginBottom: 12, // Increased spacing between inputs
-    backgroundColor: '#ffffff', // Keeping input background white
+    marginBottom: 12,
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4, // Adding shadow for depth
+    shadowRadius: 4,
     elevation: 2,
   },
   lectureCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 15, // More pronounced rounded corners
+    borderRadius: 15,
     marginHorizontal: 16,
-    marginBottom: 25, // Increased spacing for better separation
-    padding: 20, // Increased padding for a spacious feel
+    marginBottom: 25,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5, // Increased elevation for a stronger shadow effect
+    elevation: 5,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14, // Added margin for better space
+    marginBottom: 14,
   },
   classBadge: {
-    backgroundColor: '#3498db', // Changed to a more vibrant blue
+    backgroundColor: '#3498db',
     color: '#ffffff',
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 25,
     fontSize: 16,
-    fontWeight: '600', // Made font weight a bit stronger
+    fontWeight: '600',
   },
   duration: {
-    color: '#7f8c8d', // Changed to a softer gray
+    color: '#7f8c8d',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -284,15 +305,15 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   topTitle: {
-    fontSize: 18, // Slightly larger font size for titles
+    fontSize: 18,
     fontWeight: '500',
-    color: '#34495e', // Darker color for better contrast
+    color: '#34495e',
     marginBottom: 6,
-    lineHeight: 24, // Increased line height for readability
+    lineHeight: 24,
   },
   subjectText: {
     fontSize: 15,
-    color: '#7f8c8d', // Softer gray color for subject text
+    color: '#7f8c8d',
     marginBottom: 10,
   },
   videoContainer: {
@@ -303,11 +324,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#bdc3c7', // Border to give a defined look
+    borderColor: '#bdc3c7',
   },
   noVideoText: {
     fontSize: 15,
-    color: '#e74c3c', // Changed to red for emphasis when no video is available
+    color: '#e74c3c',
     textAlign: 'center',
     marginVertical: 20,
   },
@@ -315,7 +336,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 30, // Increased padding to prevent content from being too close to edges
+    padding: 30,
   },
   loadingText: {
     marginTop: 16,
@@ -325,7 +346,7 @@ const styles = StyleSheet.create({
   errorIcon: {
     fontSize: 48,
     marginBottom: 16,
-    color: '#e74c3c', // Red for error icon
+    color: '#e74c3c',
   },
   errorText: {
     fontSize: 16,
@@ -334,7 +355,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#3498db', // Consistent with the badge color
+    backgroundColor: '#3498db',
     paddingVertical: 12,
     paddingHorizontal: 35,
     borderRadius: 25,
@@ -347,7 +368,7 @@ const styles = StyleSheet.create({
   emptyIcon: {
     fontSize: 48,
     marginBottom: 16,
-    color: '#95a5a6', // Softer gray for empty state
+    color: '#95a5a6',
   },
   emptyText: {
     fontSize: 16,
@@ -355,7 +376,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    paddingBottom: 30, // More padding at the bottom for scrollable content
+    paddingBottom: 30,
   },
 });
 

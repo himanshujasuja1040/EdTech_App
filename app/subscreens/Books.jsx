@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions,
   TextInput,
   RefreshControl,
   useWindowDimensions,
@@ -19,22 +18,26 @@ import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BOOKS_CACHE_KEY = 'booksCache';
+const BOOKS_CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
 
 const Books = () => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true); // Show loading indicator until data is fetched
   const [error, setError] = useState(null);
-  const { selectedStandard ,selectedStandardColor} = useContext(AuthContext);
+  const { selectedStandard, selectedStandardColor, selectedTopic, selectedSubject } = useContext(AuthContext);
   const [refreshing, setRefreshing] = useState(false);
 
   const navigation = useNavigation();
 
   // Search states for filtering books by title, detail, and subject
-  const [searchTitle, setSearchTitle] = useState('');
+  const [searchTitle, setSearchTitle] = useState(selectedTopic);
   const [searchDetail, setSearchDetail] = useState('');
-  const [searchSubject, setSearchSubject] = useState('');
+  const [searchSubject, setSearchSubject] = useState(selectedSubject);
 
-  // Use window dimensions for responsive adjustments
+  // Use window dimensions for responsive adjustments.
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
 
   useEffect(() => {
@@ -43,19 +46,43 @@ const Books = () => {
     });
   }, [navigation]);
 
-  // Fetch books from the "Books" collection
+  // Utility function to check if cached data is still valid
+  const isCacheValid = (timestamp) => {
+    return Date.now() - timestamp < BOOKS_CACHE_EXPIRY;
+  };
+
+  // Fetch books from the "Books" collection with caching
   const fetchBooks = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Check AsyncStorage for cached books data
+      const cachedDataString = await AsyncStorage.getItem(BOOKS_CACHE_KEY);
+      if (cachedDataString) {
+        const cachedData = JSON.parse(cachedDataString);
+        if (cachedData?.timestamp && isCacheValid(cachedData.timestamp)) {
+          console.log('Using cached books data');
+          setBooks(cachedData.data);
+          setError(null);
+          return;
+        }
+      }
+
+      // No valid cache found, fetch fresh data from Firebase
       const booksCollectionRef = collection(db, 'Books');
       const querySnapshot = await getDocs(booksCollectionRef);
       const fetchedBooks = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-
       setBooks(fetchedBooks);
       setError(null);
+
+      // Store fresh data in AsyncStorage with a timestamp
+      await AsyncStorage.setItem(
+        BOOKS_CACHE_KEY,
+        JSON.stringify({ data: fetchedBooks, timestamp: Date.now() })
+      );
     } catch (err) {
       console.error('Error fetching books:', err);
       setError('Failed to load books. Please try again later.');
@@ -78,16 +105,16 @@ const Books = () => {
   const filteredBooks = useMemo(() => {
     return books.filter((book) => {
       const matchesStandard =
-        book.class.toLowerCase() === selectedStandard.toLowerCase();
-      const matchesTitle = book.title
+        (book.class || '').toLowerCase() === (selectedStandard || '').toLowerCase();
+      const matchesTitle = (book.title || '')
         .toLowerCase()
-        .includes(searchTitle.toLowerCase());
-      const matchesDetail = book.detail
+        .includes((searchTitle || '').toLowerCase());
+      const matchesDetail = (book.detail || '')
         .toLowerCase()
-        .includes(searchDetail.toLowerCase());
-      const matchesSubject = book.subject
+        .includes((searchDetail || '').toLowerCase());
+      const matchesSubject = (book.subject || '')
         .toLowerCase()
-        .includes(searchSubject.toLowerCase());
+        .includes((searchSubject || '').toLowerCase());
       return matchesStandard && matchesTitle && matchesDetail && matchesSubject;
     });
   }, [books, selectedStandard, searchTitle, searchDetail, searchSubject]);
@@ -153,7 +180,7 @@ const Books = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading Books...</Text>
       </SafeAreaView>
@@ -162,7 +189,7 @@ const Books = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.centerContainer,{backgroundColor:selectedStandardColor}]}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: selectedStandardColor }]}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorText}>{error}</Text>
       </SafeAreaView>
@@ -170,7 +197,7 @@ const Books = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.safeContainer,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: selectedStandardColor }]}>
       <FlatList
         data={filteredBooks}
         keyExtractor={keyExtractor}
@@ -236,12 +263,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f0f4f8',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f4f8',
-    paddingTop: 10,
-    paddingBottom: 40,
-  },
   headerContainer: {
     marginHorizontal: 20,
     marginBottom: 16,
@@ -251,12 +272,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#333',
     textAlign: 'center',
-  },
-  subHeader: {
-    fontSize: 16,
-    color: '#777',
-    textAlign: 'center',
-    marginTop: 4,
   },
   searchContainer: {
     marginHorizontal: 20,

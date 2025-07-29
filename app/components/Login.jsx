@@ -5,13 +5,15 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   SafeAreaView,
   BackHandler,
+  Animated,
+  ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../../constants/Colors';
 
 const Login = () => {
@@ -19,33 +21,34 @@ const Login = () => {
   const navigation = useNavigation();
   const { width, height } = useWindowDimensions();
 
-  // Determine orientation and image sizing.
+  // Scale function to adjust sizes based on device width.
+  const scale = (size) => (width / 375) * size;
+
+  // Determine orientation.
   const isPortrait = useMemo(() => height >= width, [height, width]);
   const portraitImageHeight = useMemo(() => height * 0.6, [height]);
 
-  // State for loading, error, and user data presence.
+  // States for loading, user data, and error message.
   const [isLoading, setIsLoading] = useState(true);
   const [hasUserData, setHasUserData] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Hide the header on mount.
+  // Animations.
+  const fadeAnim = useMemo(() => new Animated.Value(0), []);
+  const logoScale = useMemo(() => new Animated.Value(0.8), []);
+
+  // Hide the header.
   useEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Check AsyncStorage for user data on mount (but do not auto-navigate).
+  // Check AsyncStorage for user data.
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
         setIsLoading(true);
         const user = await AsyncStorage.getItem('user');
-        if (user) {
-          setHasUserData(true);
-        } else {
-          setHasUserData(false);
-        }
+        setHasUserData(!!user);
       } catch (error) {
         console.error('Error retrieving user data:', error);
         setErrorMsg('Error retrieving user data. Please try again.');
@@ -53,157 +56,194 @@ const Login = () => {
         setIsLoading(false);
       }
     };
-
     checkLoginStatus();
   }, []);
 
-  // Prevent hardware back button action.
+  // Prevent hardware back button.
   useEffect(() => {
     const backAction = () => true;
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
   }, []);
 
-  // On clicking "Get Started", navigate based on the presence of user data.
+  // Run fade and bounce animations in parallel.
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, logoScale]);
+
+  // Handle "Get Started" navigation.
   const handleGetStarted = useCallback(() => {
-    // Ensure the router is available
     if (!router) {
       console.error('Router is not available.');
       return;
     }
-  
-    // Strictly check that hasUserData is a boolean
-    if (hasUserData === true) {
+    if (hasUserData) {
       router.replace('/components/LoadingPage');
-    } else if (hasUserData === false) {
-      router.push('/auth/sign-in'); // Consistent use of leading slash
     } else {
-      // This branch should not be reached if hasUserData is always a boolean.
-      console.error('Unexpected value for hasUserData:', hasUserData);
+      router.push('/auth/sign-in');
     }
   }, [hasUserData, router]);
-  
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.PRIMARY} />
+      </SafeAreaView>
+    );
+  }
 
-  // Display a loading spinner while checking login status.
-  // if (isLoading) {
-  //   return (
-  //     <SafeAreaView style={[styles.container, styles.centerContainer]}>
-  //       <ActivityIndicator size="large" color={Colors.PRIMARY} />
-  //       <Text style={{ marginTop: 10 }}>Checking login status...</Text>
-  //     </SafeAreaView>
-  //   );
-  // }
+  // Common animated content.
+  const Content = () => (
+    <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+      <Text style={[styles.title, { fontSize: scale(30) }]}>
+        ABHISHEK BHAIYA CLASSES
+      </Text>
+      <Text style={[styles.description, { fontSize: scale(18) }]}>
+        Radhe Radhe Bacho ...... !!
+      </Text>
+      {errorMsg && <Text style={[styles.errorText, { fontSize: scale(16) }]}>{errorMsg}</Text>}
+      <TouchableOpacity style={styles.button} onPress={handleGetStarted} activeOpacity={0.8}>
+        <Text style={[styles.buttonText, { fontSize: scale(18) }]}>Get Started</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 
   // Render layout based on orientation.
   if (isPortrait) {
-    // Portrait layout: image on top, content below.
     return (
-      <SafeAreaView style={styles.container}>
-        <Image
-          source={require("../../assets/images/image4.jpg")}
-          style={[styles.image, { height: portraitImageHeight }]}
-        />
-        <View style={[styles.contentContainer, { paddingHorizontal: width * 0.05 }]}>
-          <Text style={styles.title}>ABHISHEK BHAIYA CLASSES</Text>
-          <Text style={styles.description}>Radhe Radhe Bacho ...... !!</Text>
-          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
-          <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
-            <Text style={styles.buttonText}>Get Started</Text>
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={styles.safeContainer}>
+        <LinearGradient colors={['#a8a9ad', '#243b55']} style={styles.gradient}>
+          <View style={styles.imageWrapper}>
+            <Animated.Image
+              source={require('../../assets/images/profilePhoto.png')}
+              style={[
+                styles.image,
+                { height: portraitImageHeight, transform: [{ scale: logoScale }] },
+              ]}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={[styles.contentWrapper, { paddingHorizontal: width * 0.05 }]}>
+            <Content />
+          </View>
+        </LinearGradient>
       </SafeAreaView>
     );
   } else {
-    // Landscape layout: image on the left, content on the right.
     return (
-      <SafeAreaView style={[styles.container, { flexDirection: 'row' }]}>
-        <Image
-          source={require("../../assets/images/image4.jpg")}
-          style={[styles.image, { width: width * 0.5, height: height }]}
-        />
-        <View
-          style={[
-            styles.contentContainer,
-            {
-              width: width * 0.5,
-              paddingHorizontal: width * 0.05,
-              marginTop: 0,
-              borderTopLeftRadius: 0,
-              borderTopRightRadius: 30,
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 30,
-              justifyContent: 'center',
-            },
-          ]}
-        >
-          <Text style={styles.title}>ABHISHEK BHAIYA CLASSES</Text>
-          <Text style={styles.description}>Radhe Radhe Bacho ...... !!</Text>
-          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
-          <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
-            <Text style={styles.buttonText}>Get Started</Text>
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={styles.safeContainer}>
+        <LinearGradient colors={['#141e30', '#243b55']} style={styles.gradientLandscape}>
+          <View style={styles.imageContainer}>
+            <View style={styles.imageWrapper}>
+              <Animated.Image
+                source={require('../../assets/images/profilePhoto.png')}
+                style={[styles.image, { transform: [{ scale: logoScale }] }]}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+          <View style={styles.contentWrapperLandscape}>
+            <Content />
+          </View>
+        </LinearGradient>
       </SafeAreaView>
     );
   }
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: { flex: 1 },
+  gradient: {
     flex: 1,
-    backgroundColor: Colors.WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradientLandscape: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    width: '100%',
   },
   image: {
     width: '100%',
-    resizeMode: 'cover',
-  },
-  contentContainer: {
-    backgroundColor: Colors.WHITE,
-    marginTop: -15, // Creates an overlapping effect in portrait mode.
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    paddingTop: 25,
-    paddingBottom: 20,
+  },
+  imageContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contentWrapper: { flex: 1, width: '100%' },
+  contentWrapperLandscape: { flex: 1, width: '50%', paddingHorizontal: 20 },
+  contentContainer: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 20,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
   },
   title: {
-    fontSize: 26,
-    fontFamily: 'outfit-bold',
     textAlign: 'center',
+    marginBottom: 10,
+    color: '#333',
+    fontFamily: 'outfit-bold',
   },
   description: {
-    fontSize: 17,
-    fontFamily: 'outfit',
     textAlign: 'center',
-    color: Colors.GRAY,
-    marginTop: 20,
+    color: '#555',
+    marginTop: 10,
     width: '90%',
+    lineHeight: 26,
+    fontFamily: 'outfit',
   },
   button: {
     backgroundColor: Colors.PRIMARY,
     paddingVertical: 15,
     paddingHorizontal: 40,
-    borderRadius: 99,
+    borderRadius: 50,
     marginTop: '10%',
     width: '80%',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
   },
   buttonText: {
     color: Colors.WHITE,
-    textAlign: 'center',
     fontFamily: 'outfit',
-    fontSize: 18,
   },
   errorText: {
     color: 'red',
     marginTop: 10,
   },
-  centerContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 });
 
-// Wrap the component with React.memo to avoid unnecessary re-renders.
 export default React.memo(Login);

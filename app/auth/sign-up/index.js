@@ -12,30 +12,47 @@ import {
   ScrollView,
   SafeAreaView,
   useWindowDimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { auth, db } from '../../../configs/firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc,GeoPoint  } from 'firebase/firestore';
+import { doc, setDoc, GeoPoint } from 'firebase/firestore';
 import CustomDropdown from '../../components/CustomDropdown';
 import { AuthContext } from '../../AuthContext/AuthContext';
 import Colors from '../../../constants/Colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-const SignUP = () => {
 
+// Helper: Display messages uniformly for Android and iOS.
+const showMessage = (title, message) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(message, ToastAndroid.LONG);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+// Helper: Email format validation.
+const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// Helper: Phone number must be exactly 10 digits.
+const validatePhoneNumber = (phone) => /^\d{10}$/.test(phone.trim());
+
+const SignUP = () => {
+  // State variables for input fields.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [userPhoneNumber, setUserPhoneNumber] = useState(null);
-  const [userParentPhoneNumber, setUserParentPhoneNumber] = useState(null);
+  const [userPhoneNumber, setUserPhoneNumber] = useState('');
+  const [userParentPhoneNumber, setUserParentPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const { selectedStandard, setSelectedStandard } = useContext(AuthContext);
 
   const router = useRouter();
   const navigation = useNavigation();
 
-  // Get current dimensions and determine orientation.
+  // Orientation handling.
   const { width, height } = useWindowDimensions();
   const isPortrait = height >= width;
 
@@ -44,87 +61,70 @@ const SignUP = () => {
   }, [navigation]);
 
   const onCreateAccounts = async () => {
-    // Check required fields
-    if (!email.trim() || !fullName.trim() || !password.trim()) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Please Enter All Details', ToastAndroid.LONG);
-      } else {
-        Alert.alert('', 'Please Enter All Details');
-      }
+    // Trim inputs for consistency.
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedFullName = fullName.trim();
+    const trimmedUserPhone = userPhoneNumber.trim();
+    const trimmedParentPhone = userParentPhoneNumber.trim();
+
+    // Validate required fields.
+    if (!trimmedEmail || !trimmedFullName || !trimmedPassword) {
+      showMessage('Input Error', 'Please enter all details.');
       return;
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Invalid Email Format', ToastAndroid.LONG);
-      } else {
-        Alert.alert('', 'Invalid Email Format');
-      }
+    if (!validateEmail(trimmedEmail)) {
+      showMessage('Invalid Email', 'Invalid email format.');
       return;
     }
 
-    // Validate phone numbers (must be exactly 10 digits)
-    if (!userPhoneNumber || !/^\d{10}$/.test(userPhoneNumber.trim())) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Invalid phone number. It must be exactly 10 digits.', ToastAndroid.LONG);
-      } else {
-        Alert.alert('Invalid Phone Number', 'Your contact detail must be exactly 10 digits.');
-      }
+    if (!validatePhoneNumber(trimmedUserPhone)) {
+      showMessage('Invalid Phone Number', 'Your contact detail must be exactly 10 digits.');
       return;
     }
-    if (!userParentPhoneNumber || !/^\d{10}$/.test(userParentPhoneNumber.trim())) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show("Invalid parent's phone number. It must be exactly 10 digits.", ToastAndroid.LONG);
-      } else {
-        Alert.alert("Invalid Parent's Phone Number", "Your parent's contact detail must be exactly 10 digits.");
-      }
+
+    if (!validatePhoneNumber(trimmedParentPhone)) {
+      showMessage("Invalid Parent's Phone Number", "Your parent's contact detail must be exactly 10 digits.");
       return;
     }
 
     setLoading(true);
     try {
+      // Create account with Firebase Authentication.
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        email.trim(),
-        password.trim()
+        trimmedEmail,
+        trimmedPassword
       );
       const user = userCredential.user;
-      // Save additional user data in Firestore with accessGranted set to false by default
+
+      // Save additional user data in Firestore.
       await setDoc(doc(db, 'users', user.uid), {
-        fullName,
+        fullName: trimmedFullName,
         email: user.email,
         selectedStandard,
         accessGranted: false,
-        createdAt: new Date(), // Timestamp
-        userPhoneNumber: userPhoneNumber,
-        userParentPhoneNumber: userParentPhoneNumber,
+        createdAt: new Date(),
+        userPhoneNumber: trimmedUserPhone,
+        userParentPhoneNumber: trimmedParentPhone,
         location: new GeoPoint(0, 0),
       });
+
+      // Store user data locally.
       await AsyncStorage.setItem('user', JSON.stringify(userCredential.user));
-      console.log('User data saved:', {
-        fullName,
-        email: user.email,
-        selectedStandard,
-        accessGranted: false,
-        userPhoneNumber: userPhoneNumber,
-        userParentPhoneNumber: userParentPhoneNumber,
-        location: new GeoPoint(0, 0),
-      });
+
+      // Navigate to the loading page.
       router.replace('/components/LoadingPage');
     } catch (error) {
-      console.error(error.code, error.message);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(error.code, ToastAndroid.LONG);
-      } else {
-        Alert.alert(error.code);
-      }
+      console.error('SignUp Error:', error.code, error.message);
+      showMessage('Sign Up Error', error.code);
     } finally {
       setLoading(false);
     }
   };
 
+  // Options for the standard dropdown.
   const standardOptions = [
     { label: 'JEE MAINS', value: 'JEE MAINS' },
     { label: 'NEET', value: 'NEET' },
@@ -139,110 +139,120 @@ const SignUP = () => {
 
   return (
     <SafeAreaView style={[styles.containerWrapper, !isPortrait && styles.containerLandscape]}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flexContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Back Button */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="black" />
-        </TouchableOpacity>
-
-        <Text style={styles.heading}>Create New Account</Text>
-
-        {/* Full Name Input */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Full Name"
-            placeholderTextColor="#888"
-            onChangeText={setFullName}
-          />
-        </View>
-
-        {/* Email Input */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Email"
-            placeholderTextColor="#888"
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-
-        {/* Password Input */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Password"
-            placeholderTextColor="#888"
-            secureTextEntry
-            onChangeText={setPassword}
-          />
-        </View>
-
-        {/* Standard Dropdown */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Standard</Text>
-          <CustomDropdown
-            options={standardOptions}
-            placeholder="Select"
-            selectedValue={selectedStandard}
-            onValueChange={setSelectedStandard}
-          />
-        </View>
-
-        {/* User Phone Number */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Your Contact Detail</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Your Phone Number"
-            placeholderTextColor="#888"
-            keyboardType="phone-pad"
-            onChangeText={setUserPhoneNumber}
-          />
-        </View>
-
-        {/* User Parent's Phone Number */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Your Parents Contact Detail</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Your Parents Phone Number"
-            placeholderTextColor="#888"
-            keyboardType="phone-pad"
-            onChangeText={setUserParentPhoneNumber}
-          />
-        </View>
-
-        {/* Create Account Button */}
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={onCreateAccounts}
-          disabled={loading}
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={Colors.WHITE} />
-          ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
-          )}
-        </TouchableOpacity>
+          {/* Back Button */}
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
 
-        {/* Navigate to Sign In */}
-        <TouchableOpacity
-          style={styles.outlineButton}
-          onPress={() => router.replace('auth/sign-in')}
-        >
-          <Text style={styles.outlineButtonText}>Sign In</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <Text style={styles.heading}>Create New Account</Text>
+
+          {/* Full Name Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Full Name"
+              placeholderTextColor="#888"
+              onChangeText={setFullName}
+              value={fullName}
+            />
+          </View>
+
+          {/* Email Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Email"
+              placeholderTextColor="#888"
+              onChangeText={setEmail}
+              value={email}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          {/* Password Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Password"
+              placeholderTextColor="#888"
+              secureTextEntry
+              onChangeText={setPassword}
+              value={password}
+            />
+          </View>
+
+          {/* Standard Dropdown */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Standard</Text>
+            <CustomDropdown
+              options={standardOptions}
+              placeholder="Select"
+              selectedValue={selectedStandard}
+              onValueChange={setSelectedStandard}
+            />
+          </View>
+
+          {/* User Phone Number */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Your Contact Detail</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Your Phone Number"
+              placeholderTextColor="#888"
+              keyboardType="phone-pad"
+              onChangeText={setUserPhoneNumber}
+              value={userPhoneNumber}
+            />
+          </View>
+
+          {/* Parent's Phone Number */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Your Parents Contact Detail</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Your Parents Phone Number"
+              placeholderTextColor="#888"
+              keyboardType="phone-pad"
+              onChangeText={setUserParentPhoneNumber}
+              value={userParentPhoneNumber}
+            />
+          </View>
+
+          {/* Create Account Button */}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onCreateAccounts}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={Colors.WHITE} />
+            ) : (
+              <Text style={styles.buttonText}>Create Account</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Navigate to Sign In */}
+          <TouchableOpacity
+            style={styles.outlineButton}
+            onPress={() => router.replace('auth/sign-in')}
+          >
+            <Text style={styles.outlineButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Full-Screen Loading Overlay */}
       {loading && (
@@ -255,13 +265,15 @@ const SignUP = () => {
 };
 
 const styles = StyleSheet.create({
+  flexContainer: {
+    flex: 1,
+  },
   containerWrapper: {
     flex: 1,
     backgroundColor: Colors.WHITE,
-    position: 'relative', // Ensures the overlay is positioned relative to the parent
+    position: 'relative', // Needed for the loading overlay.
   },
   containerLandscape: {
-    // Increase horizontal padding in landscape mode
     paddingHorizontal: 50,
   },
   container: {
@@ -318,6 +330,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderWidth: 1,
     alignItems: 'center',
+    marginBottom:100,
   },
   outlineButtonText: {
     color: Colors.PRIMARY,
@@ -330,10 +343,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)', // Semi-transparent background
+    backgroundColor: 'rgba(0,0,0,0.3)', // Semi-transparent overlay.
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000, // Ensures the overlay is above other content
+    zIndex: 1000,
   },
 });
 

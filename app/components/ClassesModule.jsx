@@ -13,22 +13,30 @@ import { db } from '../../configs/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { AuthContext } from '../AuthContext/AuthContext';
 import { useNavigation } from '@react-navigation/native';
-import moment from "moment-timezone";
+import moment from 'moment-timezone';
 import { router } from 'expo-router';
-import  Colors  from '../../constants/Colors';
+import Colors from '../../constants/Colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Helper function to safely parse the timestamp value.
+// If it's a Firestore Timestamp, it will use its toDate method,
+// otherwise it falls back to creating a new Date.
+const parseTimestamp = (timestamp) => {
+  if (timestamp && typeof timestamp.toDate === 'function') {
+    return timestamp.toDate();
+  }
+  return new Date(timestamp);
+};
 
-// Helper function to format a Firestore Timestamp to "hh:mm AM/PM"
+// Helper function to format a timestamp to "hh:mm AM/PM"
 const formatTime = (timestamp) => {
-  // Convert Firestore Timestamp to a Date object
-  const date = timestamp.toDate();
+  const date = parseTimestamp(timestamp);
   return date.toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   });
 };
-
 
 const ClassesModule = () => {
   const { selectedStandard } = useContext(AuthContext);
@@ -40,8 +48,23 @@ const ClassesModule = () => {
   // Get today's full day name (e.g., "Friday")
   const todayFull = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-  // Subscribe to the Schedules collection in Firestore for real-time updates.
   useEffect(() => {
+    // Try loading cached schedules from AsyncStorage first.
+    const fetchCachedSchedules = async () => {
+      try {
+        const cachedData = await AsyncStorage.getItem('cachedSchedules');
+        if (cachedData !== null) {
+          setScheduleData(JSON.parse(cachedData));
+          setLoading(false);
+          console.log('Loaded cached schedules');
+        }
+      } catch (e) {
+        console.error('Error reading cached schedules', e);
+      }
+    };
+
+    fetchCachedSchedules();
+
     const schedulesRef = collection(db, 'Schedules');
     const unsubscribe = onSnapshot(
       schedulesRef,
@@ -53,10 +76,9 @@ const ClassesModule = () => {
 
         // Filter schedules to include only those that match the selected standard and the current day.
         const filtered = schedules.filter((schedule) => {
-          // Ensure that schedule.class and schedule.day have a default value if null.
-          const scheduleClass = schedule.class || "";
-          const scheduleDay = schedule.day || "";
-          const standard = selectedStandard || "";
+          const scheduleClass = schedule.class || '';
+          const scheduleDay = schedule.day || '';
+          const standard = selectedStandard || '';
           return (
             scheduleClass.toLowerCase() === standard.toLowerCase() &&
             scheduleDay.toLowerCase() === todayFull.toLowerCase()
@@ -66,6 +88,11 @@ const ClassesModule = () => {
         setScheduleData(filtered);
         setError(null);
         setLoading(false);
+
+        // Cache the filtered schedules in AsyncStorage for next time.
+        AsyncStorage.setItem('cachedSchedules', JSON.stringify(filtered)).catch((e) =>
+          console.error('Error caching schedules', e)
+        );
       },
       (err) => {
         console.error('Error fetching schedules:', err);
@@ -73,22 +100,23 @@ const ClassesModule = () => {
         setLoading(false);
       }
     );
+
     return () => unsubscribe();
   }, [selectedStandard, todayFull]);
 
   // Define the schedule timezone and get the current time in that timezone.
-  const scheduleTimeZone = "Asia/Kolkata";
+  const scheduleTimeZone = 'Asia/Kolkata';
   const currentTime = moment().tz(scheduleTimeZone);
 
   // Filter schedules into ongoing and upcoming based on the current time.
   const ongoingClasses = scheduleData.filter((schedule) => {
-    const start = moment(schedule.startTime.toDate()).tz(scheduleTimeZone);
-    const end = moment(schedule.endTime.toDate()).tz(scheduleTimeZone);
+    const start = moment(parseTimestamp(schedule.startTime)).tz(scheduleTimeZone);
+    const end = moment(parseTimestamp(schedule.endTime)).tz(scheduleTimeZone);
     return currentTime.isSameOrAfter(start) && currentTime.isBefore(end);
   });
 
   const upcomingClasses = scheduleData.filter((schedule) => {
-    const start = moment(schedule.startTime.toDate()).tz(scheduleTimeZone);
+    const start = moment(parseTimestamp(schedule.startTime)).tz(scheduleTimeZone);
     return currentTime.isBefore(start);
   });
 
@@ -120,7 +148,7 @@ const ClassesModule = () => {
               <TouchableOpacity
                 key={classItem.id}
                 style={styles.classItem}
-                onPress={() => router.push("/components/Schedule")}
+                onPress={() => router.push('/components/Schedule')}
               >
                 <View style={styles.classIcon}>
                   <Ionicons name="book" size={20} color={Colors.WHITE} />

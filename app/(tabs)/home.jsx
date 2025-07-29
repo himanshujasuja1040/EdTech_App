@@ -18,9 +18,9 @@ const LoadingScreen = () => (
 );
 
 const Home = () => {
-  const { selectedStandard, name, selectedStandardColor,userLocation } = useContext(AuthContext);
+  const { selectedStandard, name, selectedStandardColor,userLocation,selectedTopic,selectedSubject } = useContext(AuthContext);
   const { width, height } = useWindowDimensions();
-
+  
   const navigation = useNavigation();
 
   // Hide the header

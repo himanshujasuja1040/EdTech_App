@@ -20,19 +20,28 @@ import { auth } from '../../../configs/firebaseConfig';
 import Colors from '../../../constants/Colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Helper: Uniform message display for both Android and iOS
+const showMessage = (title, message) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(message, ToastAndroid.LONG);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+// Helper: Email validation
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 const SignIn = () => {
-  // const Colors={
-  //   WHITE: '#fff',
-  //   PRIMARY: '#000',
-  //   GRAY: '#7d7d7d',
-  //   LIGHT_GRAY: '#f0f0f0',
-  // }
   const navigation = useNavigation();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isPortrait = height >= width;
 
-  // Hide the header on this screen
+  // Hide header for this screen
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
@@ -42,32 +51,23 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
 
   const onSignIn = async () => {
-    if (!email.trim() || !password.trim()) {
-      const msg = 'Please Enter All Details';
-      Platform.OS === 'android'
-        ? ToastAndroid.show(msg, ToastAndroid.LONG)
-        : Alert.alert('', msg);
-      return;
-    }
-
+    // Trim inputs early on
     const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      const msg = 'Invalid Email Format';
-      Platform.OS === 'android'
-        ? ToastAndroid.show(msg, ToastAndroid.LONG)
-        : Alert.alert('', msg);
+    if (!trimmedEmail || !trimmedPassword) {
+      showMessage('Input Error', 'Please enter all details.');
       return;
     }
 
-    // Check for Gmail address
+    if (!validateEmail(trimmedEmail)) {
+      showMessage('Invalid Email', 'Invalid email format.');
+      return;
+    }
+
+    // Restrict to Gmail addresses only
     if (!trimmedEmail.endsWith('@gmail.com')) {
-      const msg = 'Only Gmail addresses are allowed for sign in.';
-      Platform.OS === 'android'
-        ? ToastAndroid.show(msg, ToastAndroid.LONG)
-        : Alert.alert('', msg);
+      showMessage('Email Domain Error', 'Only Gmail addresses are allowed for sign in.');
       return;
     }
 
@@ -76,40 +76,41 @@ const SignIn = () => {
       const userCredential = await signInWithEmailAndPassword(
         auth,
         trimmedEmail,
-        password.trim()
+        trimmedPassword
       );
-      console.log(userCredential.user);
+      console.log('User signed in:', userCredential.user);
+
+      // Save user data securely
       try {
         await AsyncStorage.setItem('user', JSON.stringify(userCredential.user));
       } catch (storageError) {
         console.error('Failed to save user data:', storageError);
-        Alert('Failed to Load Data , Please Try Again Later ')
-        // Optionally, you can show an alert to the user here if needed
+        showMessage('Storage Error', 'Failed to save user data. Please try again later.');
+        return; // Exit early if storage fails
       }
+
+      // Navigate to the loading page
       router.replace('/components/LoadingPage');
     } catch (error) {
       console.error(error.code, error.message);
-      let errorMsg;
+      let errorMsg = '';
       switch (error.code) {
         case 'auth/wrong-password':
-          errorMsg = 'Invalid Email or Password';
+          errorMsg = 'Invalid email or password.';
           break;
         case 'auth/user-not-found':
-          errorMsg = 'No account found with this email';
+          errorMsg = 'No account found with this email.';
           break;
         case 'auth/invalid-credential':
-          errorMsg = 'Invalid credentials provided';
+          errorMsg = 'Invalid credentials provided.';
           break;
         case 'auth/too-many-requests':
           errorMsg = 'Too many attempts. Try again later.';
           break;
         default:
           errorMsg = error.message;
-          break;
       }
-      Platform.OS === 'android'
-        ? ToastAndroid.show(errorMsg, ToastAndroid.LONG)
-        : Alert.alert('Error', errorMsg);
+      showMessage('Sign In Error', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -119,12 +120,12 @@ const SignIn = () => {
     <SafeAreaView
       style={[
         styles.container,
-        !isPortrait && styles.containerLandscape, // Adjust padding for landscape if needed
+        !isPortrait && styles.containerLandscape,
       ]}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* Back Button */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/components/Login')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
 
@@ -133,7 +134,7 @@ const SignIn = () => {
         <Text style={styles.subtitleSecondary}>Yaad to aa rahi hogi Hmhari..!!</Text>
 
         {/* Email Input */}
-        <View style={styles.emailInputWrapper}>
+        <View style={styles.inputWrapper}>
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
@@ -142,11 +143,12 @@ const SignIn = () => {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            value={email}
           />
         </View>
 
         {/* Password Input */}
-        <View style={styles.inputWrapper}>
+        <View style={[styles.inputWrapper, { marginTop: 20 }]}>
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.input}
@@ -154,10 +156,11 @@ const SignIn = () => {
             placeholderTextColor="#888"
             secureTextEntry
             onChangeText={setPassword}
+            value={password}
           />
         </View>
 
-        {/* Sign In Button with Loading Indicator */}
+        {/* Sign In Button */}
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={onSignIn}
@@ -187,10 +190,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.WHITE,
     padding: 20,
-    // paddingTop: 20,
   },
   containerLandscape: {
-    // Increase horizontal padding for landscape mode
     paddingHorizontal: 50,
   },
   scrollContainer: {
@@ -221,11 +222,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-  emailInputWrapper: {
-    marginTop: 50,
-  },
   inputWrapper: {
-    marginTop: 20,
+    marginTop: 50,
   },
   label: {
     fontFamily: 'outfit',

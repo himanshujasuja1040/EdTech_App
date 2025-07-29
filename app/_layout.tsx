@@ -1,4 +1,4 @@
-import { Stack, useNavigation } from 'expo-router';
+import { Slot, Stack, useNavigation } from 'expo-router';
 import { useFonts } from "expo-font";
 import AuthProvider from "../app/AuthContext/AuthContext"
 import { useEffect } from 'react';
@@ -22,6 +22,7 @@ export default function RootLayout() {
         headerShown:false,
         }}/>
       </Stack>
+      {/* <Slot /> */}
     </AuthProvider>
 
   );

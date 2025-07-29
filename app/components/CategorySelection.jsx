@@ -99,7 +99,8 @@ const CategorySelection = () => {
     setTimeout(() => {
       const categoryToSet = selectedCategory || selectedStandard;
       setSelectedStandard(categoryToSet);
-      router.replace("/(tabs)/home");
+      router.replace("/components/SubjectSelection")
+      // router.replace("/(tabs)/home");
     }, 1000);
   };
 

@@ -16,7 +16,9 @@ const AuthProvider = ({ children }) => {
   const [name, setName] = useState("Guest");
   const [error, setError] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedTopic,setSelectedTopic]=useState('')
+  const[accessGranted,setAccessGranted]=useState('false');
   // Category Colors 
   const categoryColors = {
     'JEE MAINS': '#fce4ec', // light pink
@@ -97,7 +99,13 @@ const AuthProvider = ({ children }) => {
     selectedStandardColor,
     setselectedStandardColor,
     userLocation,
-    setUserLocation
+    setUserLocation,
+    setSelectedSubject,
+    selectedSubject,
+    selectedTopic,
+    setSelectedTopic,
+    accessGranted,
+    setAccessGranted
   }), [
     selectedStandard,
     selectedCategory,
@@ -108,7 +116,11 @@ const AuthProvider = ({ children }) => {
     userPhoneNumber,
     userParentPhoneNumber,
     selectedStandardColor,
-    userLocation
+    userLocation,
+    selectedSubject,
+    selectedTopic,
+    accessGranted,
+
   ]);
 
   // Create a key based on userData.

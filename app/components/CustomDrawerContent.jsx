@@ -39,6 +39,7 @@ const CustomDrawerContent = (props) => {
   } = useContext(AuthContext);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState(null);
+  const {setSelectedTopic,setSelectedSubject}=useContext(AuthContext)
 
   // Get device dimensions and determine orientation.
   const { width, height } = useWindowDimensions();
@@ -57,6 +58,8 @@ const CustomDrawerContent = (props) => {
             try {
               setIsLoggingOut(true);
               console.log('LOGGED OUT ');
+              setSelectedSubject('');
+              setSelectedTopic('');
               await auth.signOut();
 
               // Remove the stored user data from AsyncStorage.

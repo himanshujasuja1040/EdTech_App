@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -14,10 +14,11 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../configs/firebaseConfig';
 import { AuthContext } from '../AuthContext/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Live = () => {
   const navigation = useNavigation();
-  const {selectedStandardColor}=useContext(AuthContext)
+  const { selectedStandardColor } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [liveVideos, setLiveVideos] = useState([]); // Array to hold all live videos
 
@@ -36,6 +37,22 @@ const Live = () => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  // Load cached live videos on mount.
+  useEffect(() => {
+    const loadCachedVideos = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('liveVideos');
+        if (cached) {
+          setLiveVideos(JSON.parse(cached));
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error retrieving cached live videos:', error);
+      }
+    };
+    loadCachedVideos();
+  }, []);
+
   // Listen to all live video details from Firestore.
   useEffect(() => {
     const liveVideoQuery = query(
@@ -47,6 +64,9 @@ const Live = () => {
       (snapshot) => {
         const videos = snapshot.docs.map((doc) => doc.data());
         setLiveVideos(videos);
+        // Update cache with the new live videos data.
+        AsyncStorage.setItem('liveVideos', JSON.stringify(videos))
+          .catch((err) => console.error('Error caching live videos:', err));
         setLoading(false);
       },
       (error) => {
@@ -58,16 +78,16 @@ const Live = () => {
   }, []);
 
   // Helper function to extract the YouTube video ID from various URL formats.
-  const getYoutubeId = (url) => {
+  const getYoutubeId = useCallback((url) => {
     if (!url) return null;
     const regExp =
       /^.*(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|watch\?.+&v=)([^#&?]*).*/;
     const match = url.match(regExp);
     return match && match[1].length === 11 ? match[1] : null;
-  };
+  }, []);
 
   return (
-    <SafeAreaView style={[styles.outerContainer,{backgroundColor:selectedStandardColor}]}>
+    <SafeAreaView style={[styles.outerContainer, { backgroundColor: selectedStandardColor }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.headerTitle}>Live Lecture Streaming</Text>
         {loading && (
@@ -79,10 +99,7 @@ const Live = () => {
         )}
         {!loading && liveVideos.length > 0 ? (
           liveVideos.map((video, index) => (
-            <View
-              key={index}
-              style={[styles.videoCard, { width: containerWidth }]}
-            >
+            <View key={index} style={[styles.videoCard, { width: containerWidth }]}>
               <View
                 style={[
                   styles.playerContainer,
@@ -100,8 +117,7 @@ const Live = () => {
                 <Text style={styles.videoTitle}>Title: {video.title}</Text>
                 {video.createdAt && (
                   <Text style={styles.videoSubtitle}>
-                    Date:{' '}
-                    {new Date(video.createdAt.seconds * 1000).toLocaleString()}
+                    Date: {new Date(video.createdAt.seconds * 1000).toLocaleString()}
                   </Text>
                 )}
               </View>
