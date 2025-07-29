@@ -1,8 +1,18 @@
-# Welcome to your Expo app 👋
+# Welcome to your EdTech app 👋
+
+
+
+https://github.com/user-attachments/assets/2870d868-4462-4588-8631-279ad206fafb
+
+
+
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started
+
+
+
 
 1. Install dependencies
 
